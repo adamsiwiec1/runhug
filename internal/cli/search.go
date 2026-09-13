@@ -14,6 +14,9 @@ import (
 
 func cmdSearch(args []string) error {
 	fs := newFlagSet("search")
+	var query string
+	fs.StringVar(&query, "query", "", "search query")
+	fs.StringVar(&query, "q", "", "search query (shorthand)")
 	author := fs.String("author", "", "filter by Hugging Face org or user")
 	task := fs.String("task", "text-generation", "pipeline_tag (text-generation, any, …)")
 	library := fs.String("library", "", "library filter (transformers, …)")
@@ -27,7 +30,10 @@ func cmdSearch(args []string) error {
 		return err
 	}
 	*limit = clampLimit(*limit)
-	query := strings.Join(fs.Args(), " ")
+	query = strings.TrimSpace(query)
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected args %q — pass the query with -q / --query", strings.Join(fs.Args(), " "))
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -54,7 +60,7 @@ func cmdSearch(args []string) error {
 		Models:  models,
 		Sort:    *sort,
 		Limit:   *limit,
-		Command: quotedCmd("search", query),
+		Command: quotedSearchCmd(query),
 	})
 	return nil
 }
@@ -62,7 +68,7 @@ func cmdSearch(args []string) error {
 func searchAndPrint(query string, opts hubOpts) error {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return fmt.Errorf("usage: runpod-vllm-proxy search <query>")
+		return fmt.Errorf("usage: runpod-vllm-proxy search -q <query>")
 	}
 	if opts.Sort == "" {
 		opts.Sort = "relevance"
@@ -220,7 +226,7 @@ func cmdInspect(args []string) error {
 	if format.Engine == hf.EngineGGUF {
 		next = []string{
 			"runpod-vllm-proxy init --model " + model.RepoID(),
-			"runpod-vllm-proxy search " + model.RepoID() + " --sort likes",
+			"runpod-vllm-proxy search -q " + model.RepoID() + " --sort likes",
 		}
 	}
 	commands(os.Stdout, "Next:", next...)
