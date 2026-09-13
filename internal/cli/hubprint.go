@@ -47,9 +47,9 @@ func printHubResults(w io.Writer, v hubView) {
 		fmt.Fprintln(w, yellow("No models on the Hub matched."))
 		fmt.Fprintln(w)
 		commands(w, "Try a broader query:",
-			`runpod-vllm-proxy search instruct --sort likes --limit 20`,
-			`runpod-vllm-proxy search qwen --engine gguf --limit 20`,
-			`runpod-vllm-proxy search instruct --license apache-2.0 --engine vllm`,
+			`runpod-vllm-proxy search -q instruct --sort likes --limit 20`,
+			`runpod-vllm-proxy search -q qwen --engine gguf --limit 20`,
+			`runpod-vllm-proxy search -q instruct --license apache-2.0 --engine vllm`,
 		)
 		return
 	}
@@ -115,6 +115,8 @@ func printHubResults(w io.Writer, v hubView) {
 	if v.Command != "" {
 		open = append(open, v.Command+" --sort likes --limit 20")
 		open = append(open, v.Command+" --engine vllm --license apache-2.0")
+	} else {
+		open = append(open, `runpod-vllm-proxy search -q instruct --sort likes --limit 20`)
 	}
 	commands(w, "Next:", open...)
 }
@@ -180,4 +182,15 @@ func quotedCmd(name, query string) string {
 		return fmt.Sprintf("runpod-vllm-proxy %s %q", name, query)
 	}
 	return "runpod-vllm-proxy " + name + " " + query
+}
+
+func quotedSearchCmd(query string) string {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return "runpod-vllm-proxy search"
+	}
+	if strings.ContainsAny(query, " \t\"'") {
+		return fmt.Sprintf("runpod-vllm-proxy search -q %q", query)
+	}
+	return "runpod-vllm-proxy search -q " + query
 }

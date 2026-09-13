@@ -8,6 +8,7 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Changed
+- `search` takes `-q` / `--query` instead of a positional query
 - `search --sort` defaults to `relevance`; `likes` / `downloads` re-rank a 100-hit relevance pool
 - `search` gains `--license` and `--engine` (`vllm`, `gguf`) filters
 

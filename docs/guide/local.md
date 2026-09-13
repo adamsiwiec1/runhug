@@ -6,7 +6,7 @@ Face for the same family.
 ```bash
 runpod-vllm-proxy local add
 runpod-vllm-proxy local add --pick 1
-runpod-vllm-proxy search gemma4 --sort likes
+runpod-vllm-proxy search -q gemma4 --sort likes
 ```
 
 `--pick 1` on `gemma4:e4b` queries the Hub for `gemma4` and prints likes,
