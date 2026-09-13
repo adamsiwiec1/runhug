@@ -27,9 +27,10 @@ Once a user-local index exists, it takes precedence over the bundled index.
 
 ## Contents
 
-- `models.db`: SQLite database with ~100 popular text-generation models
+- `models.db`: SQLite database with ~800+ diverse text-generation models
 - Includes: model ID, tags, likes, downloads, license, library, description
-- Size: ~100 KB
+- Size: ~500 KB
+- Coverage: Popular models + model families (Llama, Qwen, Mistral, Phi, Gemma, DeepSeek, Yi) + GGUF + Safetensors
 - Updated: Periodically with package releases
 
 ## Building
