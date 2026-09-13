@@ -63,10 +63,14 @@ func searchModels(ctx context.Context, req searchRequest) ([]hf.Model, searchMet
 	// Search is for Hub discovery (often Runpod deploy) — do not drop large models
 	// because of laptop RAM caps from ParseIntent.
 	ex.Intent.MaxParamsB = 0
-	ex.Intent.PreferGGUF = strings.EqualFold(req.Engine, "gguf")
-	if req.Engine == "vllm" || req.Engine == "safetensors" {
+	// Only set engine preference when user explicitly requests it.
+	// When no --engine flag, keep PreferGGUF from intent (neutral for distinctive queries).
+	if strings.EqualFold(req.Engine, "gguf") {
+		ex.Intent.PreferGGUF = true
+	} else if req.Engine == "vllm" || req.Engine == "safetensors" {
 		ex.Intent.PreferGGUF = false
 	}
+	// else: keep the PreferGGUF from ParseIntent (often true for local contexts)
 	meta.Queries = ex.Queries
 	meta.Notes = ex.Notes
 	if ex.Source == "local-llm" {

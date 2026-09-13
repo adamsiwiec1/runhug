@@ -65,17 +65,32 @@ func TestExtractDistinctiveTokens(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		got := extractDistinctiveTokens(tt.input)
+		got := ExtractDistinctiveTokens(tt.input)
 		if len(got) != len(tt.expected) {
-			t.Errorf("extractDistinctiveTokens(%q) = %v, want %v", tt.input, got, tt.expected)
+			t.Errorf("ExtractDistinctiveTokens(%q) = %v, want %v", tt.input, got, tt.expected)
 			continue
 		}
 		for i := range got {
 			if got[i] != tt.expected[i] {
-				t.Errorf("extractDistinctiveTokens(%q) = %v, want %v", tt.input, got, tt.expected)
+				t.Errorf("ExtractDistinctiveTokens(%q) = %v, want %v", tt.input, got, tt.expected)
 				break
 			}
 		}
+	}
+}
+
+func TestExpandSingleWordHeretic(t *testing.T) {
+	ex := Expand(context.Background(), "heretic", 8, nil)
+	t.Logf("Queries = %+v", ex.Queries)
+	t.Logf("Intent.Query = %q", ex.Intent.Query)
+	found := false
+	for _, q := range ex.Queries {
+		if q == "heretic" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected 'heretic' in queries, got: %+v", ex.Queries)
 	}
 }
 
