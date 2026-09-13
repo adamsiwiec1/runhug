@@ -48,46 +48,116 @@ func cmdIndexSetup(args []string) error {
 
 	client := hf.New(config.Load().HFToken)
 	
-	// Fetch models in batches
+	// Fetch models using multiple strategies to get diverse coverage
 	var totalModels int
-	limit := 1000
-	offset := 0
 	startTime := time.Now()
-
-	for {
-		fmt.Fprintf(os.Stderr, "\r📥 Fetching models... %d fetched", totalModels)
-		
-		models, err := client.Search(ctx, hf.SearchOpts{
-			Task:   "text-generation",
-			Sort:   "downloads",
-			Limit:  limit,
-			Offset: offset,
-		})
-		if err != nil {
-			return fmt.Errorf("fetch models: %w", err)
-		}
-
-		if len(models) == 0 {
-			break
-		}
-
-		// Insert into index
-		for _, m := range models {
-			if err := idx.InsertModel(m); err != nil {
-				fmt.Fprintf(os.Stderr, "\n%s  Failed to index %s: %v\n", red("✗"), m.ID, err)
+	seenModels := make(map[string]bool)
+	
+	// Strategy 1: Most downloaded models
+	fmt.Fprintf(os.Stderr, "\r📥 Fetching popular models (downloads)... %d fetched", totalModels)
+	models, err := client.Search(ctx, hf.SearchOpts{
+		Task:  "text-generation",
+		Sort:  "downloads",
+		Limit: 100,
+	})
+	if err != nil {
+		return fmt.Errorf("fetch by downloads: %w", err)
+	}
+	for _, m := range models {
+		if !seenModels[m.RepoID()] {
+			if err := idx.InsertModel(m); err == nil {
+				seenModels[m.RepoID()] = true
+				totalModels++
 			}
 		}
-
-		totalModels += len(models)
-		offset += limit
-
-		// Break if we got fewer results than requested (last page)
-		if len(models) < limit {
-			break
+	}
+	time.Sleep(300 * time.Millisecond)
+	
+	// Strategy 2: Most liked models
+	fmt.Fprintf(os.Stderr, "\r📥 Fetching popular models (likes)... %d fetched", totalModels)
+	models, err = client.Search(ctx, hf.SearchOpts{
+		Task:  "text-generation",
+		Sort:  "likes",
+		Limit: 100,
+	})
+	if err != nil {
+		return fmt.Errorf("fetch by likes: %w", err)
+	}
+	for _, m := range models {
+		if !seenModels[m.RepoID()] {
+			if err := idx.InsertModel(m); err == nil {
+				seenModels[m.RepoID()] = true
+				totalModels++
+			}
 		}
-
-		// Rate limiting
-		time.Sleep(100 * time.Millisecond)
+	}
+	time.Sleep(300 * time.Millisecond)
+	
+	// Strategy 3: GGUF models
+	fmt.Fprintf(os.Stderr, "\r📥 Fetching GGUF models... %d fetched", totalModels)
+	models, err = client.Search(ctx, hf.SearchOpts{
+		Task:   "text-generation",
+		Filter: "gguf",
+		Sort:   "downloads",
+		Limit:  100,
+	})
+	if err == nil {
+		for _, m := range models {
+			if !seenModels[m.RepoID()] {
+				if err := idx.InsertModel(m); err == nil {
+					seenModels[m.RepoID()] = true
+					totalModels++
+				}
+			}
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+	
+	// Strategy 4: Safetensors models
+	fmt.Fprintf(os.Stderr, "\r📥 Fetching Safetensors models... %d fetched", totalModels)
+	models, err = client.Search(ctx, hf.SearchOpts{
+		Task:   "text-generation",
+		Filter: "safetensors",
+		Sort:   "downloads",
+		Limit:  100,
+	})
+	if err == nil {
+		for _, m := range models {
+			if !seenModels[m.RepoID()] {
+				if err := idx.InsertModel(m); err == nil {
+					seenModels[m.RepoID()] = true
+					totalModels++
+				}
+			}
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+	
+	// Strategy 5: Search for common model families and use cases
+	keywords := []string{
+		"llama", "qwen", "mistral", "phi", "gemma", "deepseek", "yi",
+		"coder", "code", "instruct", "chat", "math", "reasoning",
+		"uncensored", "roleplay", "creative", "cyber", "medical",
+	}
+	for _, keyword := range keywords {
+		fmt.Fprintf(os.Stderr, "\r📥 Fetching %s models... %d fetched", keyword, totalModels)
+		models, err = client.Search(ctx, hf.SearchOpts{
+			Query: keyword,
+			Task:  "text-generation",
+			Sort:  "downloads",
+			Limit: 100,
+		})
+		if err == nil {
+			for _, m := range models {
+				if !seenModels[m.RepoID()] {
+					if err := idx.InsertModel(m); err == nil {
+						seenModels[m.RepoID()] = true
+						totalModels++
+					}
+				}
+			}
+		}
+		time.Sleep(300 * time.Millisecond)
 	}
 
 	fmt.Fprintf(os.Stderr, "\r")
