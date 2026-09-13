@@ -39,10 +39,16 @@ func searchModels(ctx context.Context, req searchRequest) ([]hf.Model, searchMet
 		return nil, searchMeta{}, err
 	}
 
-	// Try local index first
+	// Try user-local index first, then bundled index, then HF API
 	indexPath := indexFilePath()
 	if index.Exists(indexPath) {
 		return searchLocalIndex(ctx, req, sortKey)
+	}
+	
+	// Try bundled index
+	bundledPath := bundledIndexPath()
+	if index.Exists(bundledPath) {
+		return searchBundledIndex(ctx, req, sortKey, bundledPath)
 	}
 
 	// Fall back to HF API
@@ -184,13 +190,21 @@ func searchModels(ctx context.Context, req searchRequest) ([]hf.Model, searchMet
 }
 
 func searchLocalIndex(ctx context.Context, req searchRequest, sortKey string) ([]hf.Model, searchMeta, error) {
-	idx, err := index.Open(indexFilePath())
+	return searchIndexAtPath(ctx, req, sortKey, indexFilePath(), "local index")
+}
+
+func searchBundledIndex(ctx context.Context, req searchRequest, sortKey string, path string) ([]hf.Model, searchMeta, error) {
+	return searchIndexAtPath(ctx, req, sortKey, path, "bundled index")
+}
+
+func searchIndexAtPath(ctx context.Context, req searchRequest, sortKey string, path string, source string) ([]hf.Model, searchMeta, error) {
+	idx, err := index.Open(path)
 	if err != nil {
-		return nil, searchMeta{}, fmt.Errorf("open local index: %w", err)
+		return nil, searchMeta{}, fmt.Errorf("open %s: %w", source, err)
 	}
 	defer idx.Close()
 
-	meta := searchMeta{RankSource: "local index"}
+	meta := searchMeta{RankSource: source}
 
 	// Get distinctive tokens for boost calculation
 	ram := recommend.RAMGB()
@@ -227,7 +241,7 @@ func searchLocalIndex(ctx context.Context, req searchRequest, sortKey string) ([
 		for _, s := range scored {
 			models = append(models, s.Model)
 		}
-		meta.RankSource = "local index + heuristics"
+		meta.RankSource = source + " + heuristics"
 	}
 
 	// Apply final sort for likes/downloads after distinctive ranking
@@ -256,10 +270,10 @@ func searchLocalIndex(ctx context.Context, req searchRequest, sortKey string) ([
 			hf.SortModels(nonDistinctive, sortKey)
 			// Concatenate: distinctive first, then non-distinctive
 			models = append(distinctive, nonDistinctive...)
-			meta.RankSource = "local index + " + sortKey + " (distinctive first)"
+			meta.RankSource = source + " + " + sortKey + " (distinctive first)"
 		} else {
 			hf.SortModels(models, sortKey)
-			meta.RankSource = "local index + " + sortKey
+			meta.RankSource = source + " + " + sortKey
 		}
 	}
 

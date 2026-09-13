@@ -198,48 +198,85 @@ func cmdIndexUpdate(args []string) error {
 
 func cmdIndexInfo(args []string) error {
 	indexPath := indexFilePath()
-	if !index.Exists(indexPath) {
+	bundledPath := bundledIndexPath()
+	
+	// Check for user-local index
+	hasLocal := index.Exists(indexPath)
+	hasBundled := bundledPath != "" && index.Exists(bundledPath)
+	
+	if !hasLocal && !hasBundled {
 		fmt.Fprintf(os.Stderr, "%s  No index found\n", yellow("⚠"))
-		fmt.Fprintf(os.Stderr, "   Run: %s\n", cyan("runpod-vllm-proxy index-setup"))
+		fmt.Fprintf(os.Stderr, "   Run: %s to create your own index\n", cyan("runpod-vllm-proxy index-setup"))
 		return nil
 	}
 
-	idx, err := index.Open(indexPath)
-	if err != nil {
-		return fmt.Errorf("open index: %w", err)
-	}
-	defer idx.Close()
+	// Show user-local index if exists
+	if hasLocal {
+		idx, err := index.Open(indexPath)
+		if err != nil {
+			return fmt.Errorf("open index: %w", err)
+		}
+		defer idx.Close()
 
-	count, err := idx.Count()
-	if err != nil {
-		return fmt.Errorf("count models: %w", err)
-	}
+		count, err := idx.Count()
+		if err != nil {
+			return fmt.Errorf("count models: %w", err)
+		}
 
-	lastUpdate, err := idx.LastUpdate()
-	if err != nil {
-		return fmt.Errorf("get last update: %w", err)
-	}
+		lastUpdate, err := idx.LastUpdate()
+		if err != nil {
+			return fmt.Errorf("get last update: %w", err)
+		}
 
-	createdAt, _ := idx.GetMetadata("created_at")
-	
-	fileInfo, _ := os.Stat(indexPath)
-	sizeKB := fileInfo.Size() / 1024
+		createdAt, _ := idx.GetMetadata("created_at")
+		
+		fileInfo, _ := os.Stat(indexPath)
+		sizeKB := fileInfo.Size() / 1024
 
-	heading(os.Stdout, "Local Search Index")
-	fmt.Fprintf(os.Stdout, "  %s  %s\n", dim("Path"), indexPath)
-	fmt.Fprintf(os.Stdout, "  %s  %d KB\n", dim("Size"), sizeKB)
-	fmt.Fprintf(os.Stdout, "  %s  %s models\n", dim("Models"), bold(fmt.Sprintf("%d", count)))
-	if createdAt != "" {
-		created, _ := time.Parse(time.RFC3339, createdAt)
-		fmt.Fprintf(os.Stdout, "  %s  %s\n", dim("Created"), formatTime(created))
-	}
-	fmt.Fprintf(os.Stdout, "  %s  %s ago\n", dim("Updated"), formatDuration(time.Since(lastUpdate)))
-	fmt.Fprintln(os.Stdout)
-
-	if time.Since(lastUpdate).Hours() > 24*7 {
-		fmt.Fprintf(os.Stdout, "%s  Index is over a week old\n", yellow("⚠"))
-		fmt.Fprintf(os.Stdout, "   Run: %s\n", cyan("runpod-vllm-proxy index-update"))
+		heading(os.Stdout, "User-Local Search Index")
+		fmt.Fprintf(os.Stdout, "  %s  %s\n", dim("Path"), indexPath)
+		fmt.Fprintf(os.Stdout, "  %s  %d KB\n", dim("Size"), sizeKB)
+		fmt.Fprintf(os.Stdout, "  %s  %s models\n", dim("Models"), bold(fmt.Sprintf("%d", count)))
+		if createdAt != "" {
+			created, _ := time.Parse(time.RFC3339, createdAt)
+			fmt.Fprintf(os.Stdout, "  %s  %s\n", dim("Created"), formatTime(created))
+		}
+		fmt.Fprintf(os.Stdout, "  %s  %s ago\n", dim("Updated"), formatDuration(time.Since(lastUpdate)))
 		fmt.Fprintln(os.Stdout)
+
+		if time.Since(lastUpdate).Hours() > 24*7 {
+			fmt.Fprintf(os.Stdout, "%s  Index is over a week old\n", yellow("⚠"))
+			fmt.Fprintf(os.Stdout, "   Run: %s\n", cyan("runpod-vllm-proxy index-update"))
+			fmt.Fprintln(os.Stdout)
+		}
+	}
+	
+	// Show bundled index info
+	if hasBundled {
+		idx, err := index.Open(bundledPath)
+		if err == nil {
+			count, _ := idx.Count()
+			lastUpdate, _ := idx.LastUpdate()
+			fileInfo, _ := os.Stat(bundledPath)
+			sizeKB := fileInfo.Size() / 1024
+			idx.Close()
+			
+			if hasLocal {
+				fmt.Fprintln(os.Stdout)
+			}
+			heading(os.Stdout, "Bundled Search Index")
+			fmt.Fprintf(os.Stdout, "  %s  %s\n", dim("Path"), bundledPath)
+			fmt.Fprintf(os.Stdout, "  %s  %d KB\n", dim("Size"), sizeKB)
+			fmt.Fprintf(os.Stdout, "  %s  %s models\n", dim("Models"), bold(fmt.Sprintf("%d", count)))
+			fmt.Fprintf(os.Stdout, "  %s  %s ago\n", dim("Indexed"), formatDuration(time.Since(lastUpdate)))
+			fmt.Fprintln(os.Stdout)
+			
+			if !hasLocal {
+				fmt.Fprintf(os.Stdout, "%s  Using bundled index (ships with package)\n", dim("ℹ"))
+				fmt.Fprintf(os.Stdout, "   Run %s for latest models\n", cyan("runpod-vllm-proxy index-setup"))
+				fmt.Fprintln(os.Stdout)
+			}
+		}
 	}
 
 	commands(os.Stdout, "Commands:",
@@ -252,12 +289,44 @@ func cmdIndexInfo(args []string) error {
 }
 
 func indexFilePath() string {
-	// Use platform-specific config directory
+	// Use platform-specific config directory for user-local index
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		configDir = os.TempDir()
 	}
 	return filepath.Join(configDir, "runpod-vllm-proxy", "models.db")
+}
+
+func bundledIndexPath() string {
+	// Try multiple locations for bundled index
+	
+	// 1. Relative to executable (production: bin/runpod-vllm-proxy -> ../data/models.db)
+	exePath, err := os.Executable()
+	if err == nil {
+		bundled := filepath.Join(filepath.Dir(exePath), "..", "data", "models.db")
+		absPath, _ := filepath.Abs(bundled)
+		if _, err := os.Stat(absPath); err == nil {
+			return absPath
+		}
+	}
+	
+	// 2. Working directory (development: run from repo root)
+	if wd, err := os.Getwd(); err == nil {
+		bundled := filepath.Join(wd, "data", "models.db")
+		if _, err := os.Stat(bundled); err == nil {
+			return bundled
+		}
+	}
+	
+	// 3. Executable's directory (if data is alongside bin/)
+	if exePath, err := os.Executable(); err == nil {
+		bundled := filepath.Join(filepath.Dir(exePath), "data", "models.db")
+		if _, err := os.Stat(bundled); err == nil {
+			return bundled
+		}
+	}
+	
+	return ""
 }
 
 func formatDuration(d time.Duration) string {
