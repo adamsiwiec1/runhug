@@ -1,0 +1,27 @@
+{
+  "name": "runpod-vllm-proxy",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Search Hugging Face, serve locally with llama.cpp, or deploy Runpod Serverless vLLM behind one OpenAI proxy.",
+  "license": "MIT",
+  "homepage": "https://adamsiwiec1.github.io/runpod-vllm-proxy/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adamsiwiec1/runpod-vllm-proxy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/adamsiwiec1/runpod-vllm-proxy/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^2.0.0-alpha.19"
+  }
+}
