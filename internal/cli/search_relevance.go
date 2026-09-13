@@ -8,6 +8,7 @@ import (
 
 	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
 	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/index"
 	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/localllm"
 	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/recommend"
 	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runtime"
@@ -37,6 +38,14 @@ func searchModels(ctx context.Context, req searchRequest) ([]hf.Model, searchMet
 	if err != nil {
 		return nil, searchMeta{}, err
 	}
+
+	// Try local index first
+	indexPath := indexFilePath()
+	if index.Exists(indexPath) {
+		return searchLocalIndex(ctx, req, sortKey)
+	}
+
+	// Fall back to HF API
 	client := hf.New(config.Load().HFToken)
 	meta := searchMeta{RankSource: "hub"}
 
@@ -171,6 +180,94 @@ func searchModels(ctx context.Context, req searchRequest) ([]hf.Model, searchMet
 	if meta.Notes != "" && strings.Contains(meta.RankSource, "local-llm") {
 		fmt.Fprintln(os.Stderr, dim(meta.Notes))
 	}
+	return models, meta, nil
+}
+
+func searchLocalIndex(ctx context.Context, req searchRequest, sortKey string) ([]hf.Model, searchMeta, error) {
+	idx, err := index.Open(indexFilePath())
+	if err != nil {
+		return nil, searchMeta{}, fmt.Errorf("open local index: %w", err)
+	}
+	defer idx.Close()
+
+	meta := searchMeta{RankSource: "local index"}
+
+	// Get distinctive tokens for boost calculation
+	ram := recommend.RAMGB()
+	ex := recommend.Expand(ctx, req.Query, ram, nil)
+	meta.Queries = ex.Queries
+
+	// Search local index
+	filters := index.SearchFilters{
+		Author:      req.Author,
+		Library:     req.Library,
+		License:     req.License,
+		PipelineTag: req.Task,
+		Engine:      req.Engine,
+		Sort:        sortKey,
+		Limit:       100, // Get pool for ranking
+	}
+
+	models, err := idx.Search(ctx, req.Query, filters)
+	if err != nil {
+		return nil, searchMeta{}, fmt.Errorf("search local index: %w", err)
+	}
+
+	// Apply distinctive term ranking if relevance sort
+	if sortKey == "relevance" {
+		ex.Intent.MaxParamsB = 0
+		if strings.EqualFold(req.Engine, "gguf") {
+			ex.Intent.PreferGGUF = true
+		} else if req.Engine == "vllm" || req.Engine == "safetensors" {
+			ex.Intent.PreferGGUF = false
+		}
+
+		scored := recommend.Score(models, ex.Intent)
+		models = make([]hf.Model, 0, len(scored))
+		for _, s := range scored {
+			models = append(models, s.Model)
+		}
+		meta.RankSource = "local index + heuristics"
+	}
+
+	// Apply final sort for likes/downloads after distinctive ranking
+	if sortKey == "likes" || sortKey == "downloads" {
+		// Split into distinctive matches and non-matches
+		hasDistinctive := len(recommend.ExtractDistinctiveTokens(req.Query)) > 0
+		if hasDistinctive {
+			var distinctive, nonDistinctive []hf.Model
+			for _, m := range models {
+				isDistinctive := false
+				idLower := strings.ToLower(m.RepoID())
+				for _, tok := range recommend.ExtractDistinctiveTokens(req.Query) {
+					if strings.Contains(idLower, tok) {
+						isDistinctive = true
+						break
+					}
+				}
+				if isDistinctive {
+					distinctive = append(distinctive, m)
+				} else {
+					nonDistinctive = append(nonDistinctive, m)
+				}
+			}
+			// Sort each group separately
+			hf.SortModels(distinctive, sortKey)
+			hf.SortModels(nonDistinctive, sortKey)
+			// Concatenate: distinctive first, then non-distinctive
+			models = append(distinctive, nonDistinctive...)
+			meta.RankSource = "local index + " + sortKey + " (distinctive first)"
+		} else {
+			hf.SortModels(models, sortKey)
+			meta.RankSource = "local index + " + sortKey
+		}
+	}
+
+	// Limit results
+	if len(models) > req.Limit {
+		models = models[:req.Limit]
+	}
+
 	return models, meta, nil
 }
 
