@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/version"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/version"
 )
 
 const BaseURL = "https://huggingface.co"

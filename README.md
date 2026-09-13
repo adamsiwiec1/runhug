@@ -8,7 +8,7 @@ The CLI stays in the terminal: **search**, **init**, **connect**, **deploy**,
 ## Install
 
 ```bash
-go install github.com/adamsiwiec/runpod-vllm-proxy/cmd/runpod-vllm-proxy@latest
+go install github.com/adamsiwiec1/runpod-vllm-proxy/cmd/runpod-vllm-proxy@latest
 ```
 
 From a clone:

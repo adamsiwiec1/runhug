@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/runtime"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runtime"
 )
 
 func cmdInit(args []string) error {

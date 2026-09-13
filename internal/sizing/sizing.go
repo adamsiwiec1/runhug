@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/hf"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
 )
 
 type Estimate struct {

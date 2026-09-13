@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/jobs"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/runpod"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/store"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/jobs"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runpod"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/store"
 )
 
 func cmdList(args []string) error {

@@ -3,8 +3,8 @@ package cli
 import (
 	"testing"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/hf"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/runtime"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runtime"
 )
 
 func TestSpecFromOverride(t *testing.T) {
