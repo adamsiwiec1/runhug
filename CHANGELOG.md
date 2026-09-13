@@ -1,20 +1,36 @@
 # Changelog
 
-All notable user-facing changes to runpod-vllm-proxy are documented here.
+All notable user-facing changes to runhug-cli are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- Rebranded CLI to **runhug-cli** (module `github.com/adamsiwiec1/runhug-cli`, binary `runhug-cli`)
+- Config directory is now XDG `~/.config/runhug-cli` (honors `XDG_CONFIG_HOME`); migrates from prior `runpod-vllm-proxy` locations on load
+- Prefer `RUNHUG_CONFIG` to override registry path; `RVP_CONFIG` still accepted during transition
+
 ### Fixed
 - `connect` Authorization header sanitization strips BOM/non-ASCII clipboard junk
-- Go module path aligned to `github.com/adamsiwiec1/runpod-vllm-proxy` (matches the GitHub repo)
 
 ## [Unreleased]
 
 ### Added
 
+- `search -q` / `--query` is the same as a positional query (`--query`
+  wins if both are set). Search matches model card descriptions as well
+  as repo id/tags, and expands a small alias map (`hacking` → `pentest`,
+  …) as extra Hub `search=` calls before local scoring.
+- `search --word-wrap` / `-ww` prints full MODEL names (default still
+  ellipsizes so 15–100 rows stay aligned).
+- Semantic rerank of that candidate pool when an embedder is available:
+  local Ollama `nomic-embed-text` (or similar), else Hugging Face Inference
+  `sentence-transformers/all-MiniLM-L6-v2` if `HF_TOKEN` is set. The Hub
+  has no public semantic model-search API. `--semantic` (default when
+  an embedder exists) / `--no-semantic`. Chat instruct models are not
+  used as embedders.
 - `connect` / `disconnect` persist a Runpod API key in the user config dir
   (`runpod.key`, mode 0600). `connect` prints
   https://console.runpod.io/user/credentials?tab=api-key (does not open a
@@ -31,8 +47,9 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - `search --sort` is `relevance` (default; Hub text search, `sort` omitted),
-  `likes`, or `downloads`. Popularity sorts re-rank a 100-hit relevance pool
-  locally instead of asking the Hub to sort by likes or downloads.
+  `likes`, or `downloads`. Popularity sorts re-rank an expanded 100-hit
+  relevance pool (aliases + card descriptions) locally instead of asking
+  the Hub to sort by likes or downloads.
 - `search` accepts `--license` (`apache-2.0`, `mit`, `gemma`, `other`, …)
   and `--engine` (`vllm`, `gguf`, …).
 - The product is Hub search, local pull (`init`), and Runpod deploy/list/proxy.

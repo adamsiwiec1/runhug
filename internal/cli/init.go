@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runtime"
+	"github.com/adamsiwiec1/runhug-cli/internal/runtime"
 )
 
 func cmdInit(args []string) error {
@@ -72,9 +72,9 @@ func cmdInit(args []string) error {
 
 func initNeedChoice() error {
 	commands(os.Stdout, "Non-interactive — pick one:",
-		"runpod-vllm-proxy init --yes",
-		"runpod-vllm-proxy init --model qwen3:8b",
-		`runpod-vllm-proxy init --search "coding assistant" --pick 1 --yes`,
+		"runhug-cli init --yes",
+		"runhug-cli init --model qwen3:8b",
+		`runhug-cli init --search "coding assistant" --pick 1 --yes`,
 	)
 	return fmt.Errorf("pass --yes for the default, --model to override, or run init in a terminal")
 }

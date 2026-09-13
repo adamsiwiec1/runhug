@@ -67,7 +67,7 @@ func CacheDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, "runpod-vllm-proxy", "gguf"), nil
+	return filepath.Join(home, "runhug-cli", "gguf"), nil
 }
 
 func (c *Client) Download(ctx context.Context, repoID, filename, dest string) error {
@@ -83,7 +83,7 @@ func (c *Client) Download(ctx context.Context, repoID, filename, dest string) er
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "runpod-vllm-proxy")
+	req.Header.Set("User-Agent", "runhug-cli")
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}

@@ -2,37 +2,44 @@ package cli
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/family"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug-cli/internal/family"
+	"github.com/adamsiwiec1/runhug-cli/internal/hf"
 )
 
 func cmdSearch(args []string) error {
 	fs := newFlagSet("search")
+	var queryFlag string
+	fs.StringVar(&queryFlag, "query", "", "search query (same as positional; wins if both set)")
+	fs.StringVar(&queryFlag, "q", "", "search query (same as --query)")
 	author := fs.String("author", "", "filter by Hugging Face org or user")
 	task := fs.String("task", "text-generation", "pipeline_tag (text-generation, any, …)")
 	library := fs.String("library", "", "library filter (transformers, …)")
 	filter := fs.String("filter", "", "extra Hub tag filter (safetensors, gguf, …)")
 	license := fs.String("license", "", "license filter (apache-2.0, mit, gemma, other, …)")
 	engine := fs.String("engine", "", "engine filter (vllm, gguf, …)")
-	sort := fs.String("sort", "relevance", "relevance (default; Hub text search, sort omitted), likes, or downloads (re-rank a 100-hit relevance pool)")
+	sort := fs.String("sort", "relevance", "relevance (default; semantic cosine if an embedder is available, else id/tags/description), likes, or downloads (re-rank the same 100-hit pool)")
 	limit := fs.Int("limit", 15, "rows to show (1-100)")
+	semanticOn := fs.Bool("semantic", true, "rerank with embeddings when nomic-embed-text (Ollama) or HF Inference is available")
+	noSemantic := fs.Bool("no-semantic", false, "disable embedding rerank (lexical Hub search only)")
+	wordWrap, ww := addWordWrapFlags(fs)
 	asJSON := fs.Bool("json", false, "print JSON")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
 	*limit = clampLimit(*limit)
-	query := strings.Join(fs.Args(), " ")
+	query := resolveSearchQuery(queryFlag, strings.Join(fs.Args(), " "))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	client := hf.New(config.Load().HFToken)
-	models, err := client.Search(ctx, hf.SearchOpts{
+	models, note, err := searchRanked(ctx, client, hf.SearchOpts{
 		Query:   query,
 		Author:  *author,
 		Task:    *task,
@@ -40,21 +47,23 @@ func cmdSearch(args []string) error {
 		Filter:  *filter,
 		License: *license,
 		Engine:  *engine,
-		Sort:    *sort,
-		Limit:   *limit,
-	})
+	}, *sort, *limit, *semanticOn && !*noSemantic)
 	if err != nil {
 		return err
+	}
+	if note != "" {
+		fmt.Fprintln(os.Stderr, dim(note))
 	}
 	if *asJSON {
 		return writeJSON(models)
 	}
 	printHubResults(os.Stdout, hubView{
-		Query:   query,
-		Models:  models,
-		Sort:    *sort,
-		Limit:   *limit,
-		Command: quotedCmd("search", query),
+		Query:    query,
+		Models:   models,
+		Sort:     *sort,
+		Limit:    *limit,
+		Command:  quotedCmd("search", query),
+		WordWrap: *wordWrap || *ww,
 	})
 	return nil
 }
@@ -62,7 +71,7 @@ func cmdSearch(args []string) error {
 func searchAndPrint(query string, opts hubOpts) error {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return fmt.Errorf("usage: runpod-vllm-proxy search <query>")
+		return fmt.Errorf("usage: runhug-cli search <query>")
 	}
 	if opts.Sort == "" {
 		opts.Sort = "relevance"
@@ -76,13 +85,20 @@ func searchAndPrint(query string, opts hubOpts) error {
 		return err
 	}
 	printHubResults(os.Stdout, hubView{
-		Query:   query,
-		Models:  models,
-		Sort:    opts.Sort,
-		Limit:   opts.Limit,
-		Command: opts.Command,
+		Query:    query,
+		Models:   models,
+		Sort:     opts.Sort,
+		Limit:    opts.Limit,
+		Command:  opts.Command,
+		WordWrap: opts.WordWrap,
 	})
 	return nil
+}
+
+func addWordWrapFlags(fs *flag.FlagSet) (wordWrap, ww *bool) {
+	wordWrap = fs.Bool("word-wrap", false, "print full MODEL names (no ellipsis)")
+	ww = fs.Bool("ww", false, "same as --word-wrap")
+	return wordWrap, ww
 }
 
 func searchHub(query, sort, task, filter string, limit int) ([]hf.Model, error) {
@@ -95,15 +111,28 @@ func searchHub(query, sort, task, filter string, limit int) ([]hf.Model, error) 
 	if limit <= 0 {
 		limit = 10
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	return hf.New(config.Load().HFToken).Search(ctx, hf.SearchOpts{
+	client := hf.New(config.Load().HFToken)
+	models, note, err := searchRanked(ctx, client, hf.SearchOpts{
 		Query:  query,
 		Task:   task,
 		Filter: filter,
-		Sort:   sort,
-		Limit:  limit,
-	})
+	}, sort, limit, true)
+	if note != "" {
+		fmt.Fprintln(os.Stderr, dim(note))
+	}
+	return models, err
+}
+
+// resolveSearchQuery prefers --query/-q when set, otherwise the positional words.
+func resolveSearchQuery(flagQuery, positional string) string {
+	flagQuery = strings.TrimSpace(flagQuery)
+	positional = strings.TrimSpace(positional)
+	if flagQuery != "" {
+		return flagQuery
+	}
+	return positional
 }
 
 func formatCount(n int64) string {
@@ -140,7 +169,7 @@ func cmdInspect(args []string) error {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: runpod-vllm-proxy inspect <org/model>")
+		return fmt.Errorf("usage: runhug-cli inspect <org/model>")
 	}
 	modelID := fs.Arg(0)
 
@@ -162,7 +191,7 @@ func cmdInspect(args []string) error {
 			recText = "GPU catalog: " + err.Error()
 		}
 	} else {
-		recText = "run `runpod-vllm-proxy connect` to pick a live serverless GPU pool"
+		recText = "run `runhug-cli connect` to pick a live serverless GPU pool"
 	}
 
 	if *asJSON {
@@ -214,13 +243,13 @@ func cmdInspect(args []string) error {
 	}
 	fmt.Fprintln(os.Stdout)
 	next := []string{
-		"runpod-vllm-proxy deploy " + model.RepoID(),
-		"runpod-vllm-proxy connect",
+		"runhug-cli deploy " + model.RepoID(),
+		"runhug-cli connect",
 	}
 	if format.Engine == hf.EngineGGUF {
 		next = []string{
-			"runpod-vllm-proxy init --model " + model.RepoID(),
-			"runpod-vllm-proxy search " + model.RepoID() + " --sort likes",
+			"runhug-cli init --model " + model.RepoID(),
+			"runhug-cli search " + model.RepoID() + " --sort likes",
 		}
 	}
 	commands(os.Stdout, "Next:", next...)

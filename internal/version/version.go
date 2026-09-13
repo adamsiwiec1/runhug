@@ -1,6 +1,6 @@
 package version
 
 const (
-	Name    = "runpod-vllm-proxy"
+	Name    = "runhug-cli"
 	Version = "0.1.0"
 )

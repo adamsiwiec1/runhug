@@ -24,6 +24,9 @@ func searchFilters(opts SearchOpts) []string {
 	if f := strings.TrimSpace(opts.Filter); f != "" {
 		out = append(out, f)
 	}
+	if f := strings.TrimSpace(opts.ExtraFilter); f != "" {
+		out = append(out, f)
+	}
 	if lic := strings.TrimSpace(opts.License); lic != "" {
 		lic = strings.TrimPrefix(strings.ToLower(lic), "license:")
 		if lic != "other" && lic != "any" {

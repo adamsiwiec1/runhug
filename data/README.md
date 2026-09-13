@@ -5,7 +5,7 @@ This directory contains a pre-built SQLite search index of Hugging Face models. 
 ## Usage
 
 The CLI automatically uses this bundled index when:
-1. No user-local index exists at `~/.config/runpod-vllm-proxy/models.db`
+1. No user-local index exists at `~/.config/runhug-cli/models.db`
 2. The bundled index is found (relative to executable or in working directory)
 
 ## Updating
@@ -14,14 +14,14 @@ Users can create their own fresh index with:
 
 ```bash
 # Create/update user-local index with latest models
-runpod-vllm-proxy index-setup
+runhug-cli index-setup
 ```
 
 Once a user-local index exists, it takes precedence over the bundled index.
 
 ## Search Hierarchy
 
-1. **User-local index** (`~/.config/runpod-vllm-proxy/models.db`) - highest priority
+1. **User-local index** (`~/.config/runhug-cli/models.db`) - highest priority
 2. **Bundled index** (`data/models.db`) - fallback if no user index
 3. **Hugging Face API** - fallback if no indexes exist
 
@@ -39,8 +39,8 @@ To rebuild the bundled index:
 
 ```bash
 # From repo root
-./bin/runpod-vllm-proxy index-setup --force
-cp ~/.config/runpod-vllm-proxy/models.db data/models.db
+./bin/runhug-cli index-setup --force
+cp ~/.config/runhug-cli/models.db data/models.db
 git add data/models.db
 git commit -m "Update bundled search index"
 ```

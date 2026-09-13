@@ -9,7 +9,7 @@ import (
 
 func TestLookup(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("RVP_CONFIG", filepath.Join(dir, "registry.json"))
+	t.Setenv("RUNHUG_CONFIG", filepath.Join(dir, "registry.json"))
 	r := &Registry{Models: map[string]Model{
 		"Qwen/Qwen2.5-7B-Instruct": {HFRepo: "Qwen/Qwen2.5-7B-Instruct", EndpointID: "ep1", CreatedAt: time.Now()},
 		"google/gemma-3-1b-it":     {HFRepo: "google/gemma-3-1b-it", EndpointID: "ep2", CreatedAt: time.Now()},

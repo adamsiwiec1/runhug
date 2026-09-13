@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/cli"
+	"github.com/adamsiwiec1/runhug-cli/internal/cli"
 )
 
 func main() {

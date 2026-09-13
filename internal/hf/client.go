@@ -7,11 +7,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/version"
+	"github.com/adamsiwiec1/runhug-cli/internal/version"
 )
 
 const BaseURL = "https://huggingface.co"
@@ -31,17 +33,19 @@ func New(token string) *Client {
 }
 
 type SearchOpts struct {
-	Query   string
-	Author  string
-	Task    string
-	Library string
-	Filter  string
-	License string // apache-2.0, mit, gemma, other, …
-	Engine  string // vllm, gguf, or any DetectFormat engine string
-	Sort    string // relevance (default), likes, downloads
-	Limit   int
-	Offset  int // Hub has no official offset; ignored by Search
-	Full    bool
+	Query       string
+	Author      string
+	Task        string
+	Library     string
+	Filter      string
+	License     string // apache-2.0, mit, gemma, other, …
+	Engine      string // vllm, gguf, or any DetectFormat engine string
+	Sort        string // relevance (default), likes, downloads
+	Limit       int
+	Offset      int // Hub has no official offset; ignored by Search
+	Full        bool
+	Expand      bool   // extra Hub search= aliases / tokens, then local score
+	ExtraFilter string // additional Hub filter= tag (tag-probe recall)
 }
 
 type Model struct {
@@ -62,6 +66,7 @@ type Model struct {
 	Safetensors  *Safetensors   `json:"safetensors"`
 	CardData     map[string]any `json:"cardData"`
 	Config       map[string]any `json:"config"`
+	Description  string         `json:"description"`
 }
 
 type Sibling struct {
@@ -108,7 +113,43 @@ func (m Model) License() string {
 	return ""
 }
 
+// CardDescription is the model card / Hub description, if the list or Get
+// payload included one. Does not download weights or README files.
+func (m Model) CardDescription() string {
+	if s := strings.TrimSpace(m.Description); s != "" {
+		return clipDesc(s)
+	}
+	if m.CardData == nil {
+		return ""
+	}
+	for _, key := range []string{"description", "summary", "text"} {
+		if s, ok := m.CardData[key].(string); ok {
+			if s = strings.TrimSpace(s); s != "" {
+				return clipDesc(s)
+			}
+		}
+	}
+	return ""
+}
+
+func clipDesc(s string) string {
+	if len(s) > 2000 {
+		return s[:2000]
+	}
+	return s
+}
+
 func (c *Client) Search(ctx context.Context, opts SearchOpts) ([]Model, error) {
+	if err := normalizeSearchOpts(&opts); err != nil {
+		return nil, err
+	}
+	if opts.Expand && strings.TrimSpace(opts.Query) != "" {
+		return c.searchExpanded(ctx, opts)
+	}
+	return c.searchOnce(ctx, opts)
+}
+
+func normalizeSearchOpts(opts *SearchOpts) error {
 	if opts.Limit <= 0 {
 		opts.Limit = 15
 	}
@@ -120,15 +161,18 @@ func (c *Client) Search(ctx context.Context, opts SearchOpts) ([]Model, error) {
 	}
 	sortKey, err := NormalizeSort(opts.Sort)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	opts.Sort = sortKey
+	return nil
+}
 
+func (c *Client) searchOnce(ctx context.Context, opts SearchOpts) ([]Model, error) {
 	// likes/downloads: fetch a relevance pool, then re-rank locally.
 	// GET /api/models text relevance is the unsorted default (omit sort).
 	fetchLimit := opts.Limit
-	apiSort := sortKey
-	if sortKey == "likes" || sortKey == "downloads" {
+	apiSort := opts.Sort
+	if opts.Sort == "likes" || opts.Sort == "downloads" {
 		fetchLimit = 100
 		if opts.Limit > fetchLimit {
 			fetchLimit = opts.Limit
@@ -159,6 +203,13 @@ func (c *Client) Search(ctx context.Context, opts SearchOpts) ([]Model, error) {
 	q.Set("limit", strconv.Itoa(fetchLimit))
 	if opts.Full {
 		q.Set("full", "true")
+		// expand replaces the default field set — include stats, not only cardData.
+		for _, field := range []string{
+			"cardData", "likes", "downloads", "tags", "pipeline_tag",
+			"library_name", "siblings", "gated", "safetensors", "author",
+		} {
+			q.Add("expand", field)
+		}
 	}
 
 	var models []Model
@@ -167,13 +218,175 @@ func (c *Client) Search(ctx context.Context, opts SearchOpts) ([]Model, error) {
 	}
 	models = filterByEngine(models, opts.Engine)
 	models = filterByLicense(models, opts.License)
-	if sortKey == "likes" || sortKey == "downloads" {
-		SortModels(models, sortKey)
+	if opts.Sort == "likes" || opts.Sort == "downloads" {
+		SortModels(models, opts.Sort)
 	}
 	if len(models) > opts.Limit {
 		models = models[:opts.Limit]
 	}
 	return models, nil
+}
+
+func (c *Client) searchExpanded(ctx context.Context, opts SearchOpts) ([]Model, error) {
+	sortKey := opts.Sort
+	plan := HubQueryPlan(opts.Query, opts.Task)
+	seen := map[string]Model{}
+	add := func(batch []Model) {
+		for _, m := range batch {
+			id := m.RepoID()
+			if id == "" {
+				continue
+			}
+			if existing, ok := seen[id]; ok {
+				if existing.CardDescription() == "" && m.CardDescription() != "" {
+					seen[id] = mergeModelMeta(existing, m)
+				}
+				continue
+			}
+			seen[id] = m
+		}
+	}
+
+	for i, call := range plan {
+		one := opts
+		one.Expand = false
+		one.Full = true
+		one.Query = call.Search
+		one.Task = call.Task
+		one.Sort = "relevance"
+		one.Limit = 100
+		one.ExtraFilter = call.Filter
+		batch, err := c.searchOnce(ctx, one)
+		if err != nil {
+			if i == 0 {
+				return nil, err
+			}
+			continue
+		}
+		add(batch)
+	}
+
+	pool := make([]Model, 0, len(seen))
+	for _, m := range seen {
+		pool = append(pool, m)
+	}
+	c.hydrateDescriptions(ctx, pool, RelevanceTerms(opts.Query), maxCardGets)
+	ScoreRelevance(pool, opts.Query)
+	if len(pool) > 100 {
+		pool = pool[:100]
+	}
+	if sortKey == "likes" || sortKey == "downloads" {
+		SortModels(pool, sortKey)
+	}
+	pool = filterByEngine(pool, opts.Engine)
+	pool = filterByLicense(pool, opts.License)
+	if len(pool) > opts.Limit {
+		pool = pool[:opts.Limit]
+	}
+	return pool, nil
+}
+
+func mergeModelMeta(dst, src Model) Model {
+	if dst.Description == "" {
+		dst.Description = strings.TrimSpace(src.Description)
+	}
+	if dst.CardData == nil && src.CardData != nil {
+		dst.CardData = src.CardData
+	}
+	if dst.Description == "" {
+		dst.Description = src.CardDescription()
+	}
+	if dst.PipelineTag == "" {
+		dst.PipelineTag = src.PipelineTag
+	}
+	dst.Tags = unionTags(dst.Tags, src.Tags)
+	return dst
+}
+
+func unionTags(a, b []string) []string {
+	if len(b) == 0 {
+		return a
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, t := range a {
+		k := strings.ToLower(t)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, t)
+	}
+	for _, t := range b {
+		k := strings.ToLower(t)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, t)
+	}
+	return out
+}
+
+func (c *Client) hydrateDescriptions(ctx context.Context, models []Model, terms []string, maxGets int) {
+	if maxGets <= 0 {
+		maxGets = maxCardGets
+	}
+	type cand struct {
+		i       int
+		likes   int
+		noMatch bool
+	}
+	var need []cand
+	for i, m := range models {
+		if m.RepoID() == "" || strings.TrimSpace(m.CardDescription()) != "" {
+			continue
+		}
+		need = append(need, cand{
+			i:       i,
+			likes:   m.Likes,
+			noMatch: !matchesTerms(SearchableText(m), terms),
+		})
+	}
+	sort.SliceStable(need, func(i, j int) bool {
+		if need[i].noMatch != need[j].noMatch {
+			return need[i].noMatch
+		}
+		return need[i].likes > need[j].likes
+	})
+	if len(need) > maxGets {
+		need = need[:maxGets]
+	}
+	if len(need) == 0 {
+		return
+	}
+
+	sem := make(chan struct{}, cardGetConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	for _, n := range need {
+		if err := ctx.Err(); err != nil {
+			break
+		}
+		wg.Add(1)
+		go func(i int, id string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
+			full, err := c.Get(ctx, id)
+			if err != nil || full == nil {
+				return
+			}
+			mu.Lock()
+			models[i] = mergeModelMeta(models[i], *full)
+			mu.Unlock()
+		}(n.i, models[n.i].RepoID())
+	}
+	wg.Wait()
 }
 
 func (c *Client) Get(ctx context.Context, repoID string) (*Model, error) {

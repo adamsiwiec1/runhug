@@ -1,16 +1,16 @@
 {
-  "name": "runpod-vllm-proxy",
+  "name": "runhug-cli",
   "private": true,
   "version": "0.1.0",
-  "description": "Search Hugging Face, serve locally with llama.cpp, or deploy Runpod Serverless vLLM behind one OpenAI proxy.",
+  "description": "Find the best Hugging Face model, deploy on Runpod in minutes, run it for pennies.",
   "license": "MIT",
-  "homepage": "https://adamsiwiec1.github.io/runpod-vllm-proxy/",
+  "homepage": "https://adamsiwiec1.github.io/runhug-cli/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/adamsiwiec1/runpod-vllm-proxy.git"
+    "url": "git+https://github.com/adamsiwiec1/runhug-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/adamsiwiec1/runpod-vllm-proxy/issues"
+    "url": "https://github.com/adamsiwiec1/runhug-cli/issues"
   },
   "type": "module",
   "engines": {

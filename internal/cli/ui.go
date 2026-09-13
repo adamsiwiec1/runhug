@@ -7,7 +7,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/find"
+	"github.com/adamsiwiec1/runhug-cli/internal/find"
 )
 
 func newTab(w io.Writer) *tabwriter.Writer {
@@ -95,9 +95,9 @@ func printAddHelp(w io.Writer, hits []find.Found) {
 	n := examplePick(hits)
 	name := exampleName(hits)
 	commands(w, "Search Hugging Face for one of these:",
-		fmt.Sprintf("runpod-vllm-proxy local add --pick %d --limit 20", n),
-		fmt.Sprintf("runpod-vllm-proxy search %s --sort likes --limit 20", name),
-		`runpod-vllm-proxy search "instruct coder" --filter gguf --limit 20`,
+		fmt.Sprintf("runhug-cli local add --pick %d --limit 20", n),
+		fmt.Sprintf("runhug-cli search %s --sort likes --limit 20", name),
+		`runhug-cli search "instruct coder" --filter gguf --limit 20`,
 	)
 }
 
@@ -117,11 +117,11 @@ func printReady(mName, runtimeName, url string) {
 		q = q[:i]
 	}
 	next := []string{
-		fmt.Sprintf("runpod-vllm-proxy search %s --sort likes", q),
-		"runpod-vllm-proxy inspect <org/model>",
-		"runpod-vllm-proxy connect",
-		"runpod-vllm-proxy deploy <org/model>",
-		"runpod-vllm-proxy proxy",
+		fmt.Sprintf("runhug-cli search %s --sort likes", q),
+		"runhug-cli inspect <org/model>",
+		"runhug-cli connect",
+		"runhug-cli deploy <org/model>",
+		"runhug-cli proxy",
 	}
 	commands(w, "Next:", next...)
 }

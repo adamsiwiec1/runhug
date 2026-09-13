@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/version"
+	"github.com/adamsiwiec1/runhug-cli/internal/version"
 )
 
 func Run(args []string) error {
@@ -60,10 +60,10 @@ func Run(args []string) error {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintf(w, `%s %s — search Hugging Face, pull locally, deploy to Runpod.
+	fmt.Fprintf(w, `%s %s — find the best Hugging Face model, deploy on Runpod in minutes, run it for pennies.
 
 Usage:
-  runpod-vllm-proxy <command> [flags]
+  runhug-cli <command> [flags]
 
 Setup
   init               Runtime + default local model (--model / --search)
@@ -71,7 +71,7 @@ Setup
   disconnect         Forget the stored key
 
 Search
-  search [query]     Hugging Face (--sort relevance|likes|downloads, --license, --engine, --limit N)
+  search [query]     Hugging Face (-q/--query, cards + aliases; semantic rank when available; --sort relevance|likes|downloads, --license, --engine, --limit N)
   inspect <model>    Hub card, params, VRAM estimate
 
 Runpod
@@ -85,9 +85,9 @@ Local
   local setup        Show / install Ollama, llama.cpp, or MLX
 
 Environment
-  HF_TOKEN           Gated or private Hub models (not stored)
+  HF_TOKEN           Gated Hub models and optional Inference embeddings (not stored)
   RUNPOD_API_KEY     Used if set; otherwise the key from connect
-  RVP_CONFIG         Override registry path
+  RUNHUG_CONFIG      Override registry path (RVP_CONFIG still accepted)
   NO_COLOR           Disable ANSI colors
 `, version.Name, version.Version)
 }

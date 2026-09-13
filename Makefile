@@ -1,7 +1,7 @@
 .PHONY: help build test tidy docs docs-build check
 
 help:
-	@echo "build        Go binary → bin/runpod-vllm-proxy"
+	@echo "build        Go binary → bin/runhug-cli"
 	@echo "test         go test ./..."
 	@echo "tidy         go mod tidy"
 	@echo "docs         VitePress dev server"
@@ -9,7 +9,7 @@ help:
 	@echo "check        tests + vet + docs-build"
 
 build:
-	go build -o bin/runpod-vllm-proxy ./cmd/runpod-vllm-proxy
+	go build -o bin/runhug-cli ./cmd/runhug-cli
 
 test:
 	go test ./...

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
 )
 
 func TestConnectHelp(t *testing.T) {
@@ -294,7 +294,7 @@ func setupConnectTest(t *testing.T) {
 	t.Cleanup(func() {
 		verifyKey, promptOK, askReplace, readAPIKey = origVerify, origPrompt, origAsk, origRead
 	})
-	t.Setenv("RVP_CONFIG", filepath.Join(t.TempDir(), "registry.json"))
+	t.Setenv("RUNHUG_CONFIG", filepath.Join(t.TempDir(), "registry.json"))
 	t.Setenv(config.EnvRunpodAPIKey, "")
 	t.Setenv("NO_COLOR", "1")
 	verifyKey = func(string) error { return nil }

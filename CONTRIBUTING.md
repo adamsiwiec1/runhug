@@ -1,6 +1,6 @@
 # Contributing
 
-runpod-vllm-proxy is released under the [MIT license](LICENSE). By contributing
+runhug-cli is released under the [MIT license](LICENSE). By contributing
 you agree that your contribution is distributed under that license.
 Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
@@ -15,7 +15,7 @@ Requires [Go](https://go.dev/dl/) 1.22 or later.
 ```bash
 go test ./...
 go vet ./...
-go build -o bin/runpod-vllm-proxy ./cmd/runpod-vllm-proxy
+go build -o bin/runhug-cli ./cmd/runhug-cli
 ```
 
 Docs (optional — Node 22, same floor as the FOSS template):

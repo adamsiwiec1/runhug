@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/version"
+	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug-cli/internal/version"
 )
 
 type replSession struct {
@@ -32,7 +32,7 @@ func runREPL() error {
 
 	fmt.Fprintf(os.Stdout, "%s %s — Interactive Mode\n\n", bold(version.Name), version.Version)
 	fmt.Fprintln(os.Stdout, "Commands:")
-	fmt.Fprintln(os.Stdout, "  "+cyan("search -q \"...\"")+"        Search Hugging Face models")
+	fmt.Fprintln(os.Stdout, "  "+cyan("search -q \"...\"")+"        Search Hugging Face (id, tags, card description)")
 	fmt.Fprintln(os.Stdout, "  "+cyan("copy N")+"                Copy model id from last search (N = row number)")
 	fmt.Fprintln(os.Stdout, "  "+cyan("inspect <model>")+"       Show model details")
 	fmt.Fprintln(os.Stdout, "  "+cyan("deploy <model>")+"        Deploy model to Runpod")
@@ -43,7 +43,7 @@ func runREPL() error {
 	fmt.Fprintln(os.Stdout)
 
 	for {
-		fmt.Fprint(os.Stdout, bold("runpod-vllm-proxy> "))
+		fmt.Fprint(os.Stdout, bold("runhug-cli> "))
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
@@ -121,7 +121,7 @@ func (s *replSession) handleCommand(line string) error {
 
 func (s *replSession) cmdHelp() error {
 	fmt.Fprintln(os.Stdout, "Available commands:")
-	fmt.Fprintln(os.Stdout, "  "+cyan("search -q \"query\"")+"   Search models (--engine vllm|gguf, --license apache-2.0, --sort likes|downloads, --limit N)")
+	fmt.Fprintln(os.Stdout, "  "+cyan("search -q \"query\"")+"   Search id/tags/description; semantic rank when nomic-embed-text or HF_TOKEN (--engine vllm|gguf, --license, --sort likes|downloads, --no-semantic)")
 	fmt.Fprintln(os.Stdout, "  "+cyan("copy N")+"             Copy model id from row N of last search")
 	fmt.Fprintln(os.Stdout, "  "+cyan("inspect <model>")+"    Show model details and VRAM estimates")
 	fmt.Fprintln(os.Stdout, "  "+cyan("deploy <model>")+"     Deploy model to Runpod serverless")
@@ -144,32 +144,36 @@ func (s *replSession) cmdSearchREPL(args []string) error {
 	filter := fs.String("filter", "", "extra Hub tag filter (safetensors, …)")
 	license := fs.String("license", "", "license filter (apache-2.0, mit, …)")
 	engine := fs.String("engine", "", "engine filter (vllm, gguf)")
-	sort := fs.String("sort", "relevance", "relevance (default), likes, downloads")
+	sort := fs.String("sort", "relevance", "relevance (default; semantic if available), likes, downloads")
 	limit := fs.Int("limit", 15, "max results (1-100)")
+	semanticOn := fs.Bool("semantic", true, "rerank with embeddings when an embedder is available")
+	noSemantic := fs.Bool("no-semantic", false, "disable embedding rerank")
+	wordWrap, ww := addWordWrapFlags(fs)
 
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
 
 	*limit = clampLimit(*limit)
-	query = strings.TrimSpace(query)
+	query = resolveSearchQuery(query, strings.Join(fs.Args(), " "))
 	if query == "" {
-		return fmt.Errorf("usage: search -q <query>")
+		return fmt.Errorf("usage: search -q <query>   (or: search <query>)")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	models, meta, err := searchModels(ctx, searchRequest{
-		Query:   query,
-		Author:  *author,
-		Task:    *task,
-		Library: *library,
-		Filter:  *filter,
-		License: *license,
-		Engine:  *engine,
-		Sort:    *sort,
-		Limit:   *limit,
+		Query:           query,
+		Author:          *author,
+		Task:            *task,
+		Library:         *library,
+		Filter:          *filter,
+		License:         *license,
+		Engine:          *engine,
+		Sort:            *sort,
+		Limit:           *limit,
+		DisableSemantic: !*semanticOn || *noSemantic,
 	})
 	if err != nil {
 		return err
@@ -186,6 +190,7 @@ func (s *replSession) cmdSearchREPL(args []string) error {
 		Command:    quotedSearchCmd(query),
 		RankSource: meta.RankSource,
 		Queries:    meta.Queries,
+		WordWrap:   *wordWrap || *ww,
 	})
 
 	return nil

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runpod"
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
 )
 
 // runpodAPIKeysURL is the official console page for creating or copying API keys.
@@ -156,10 +156,10 @@ func printConsoleURL(w io.Writer) {
 
 func printConnectNext() {
 	commands(os.Stdout, "Next:",
-		"runpod-vllm-proxy list",
-		"runpod-vllm-proxy gpus",
-		"runpod-vllm-proxy deploy Qwen/Qwen2.5-7B-Instruct",
-		"runpod-vllm-proxy proxy",
+		"runhug-cli list",
+		"runhug-cli gpus",
+		"runhug-cli deploy Qwen/Qwen2.5-7B-Instruct",
+		"runhug-cli proxy",
 	)
 }
 

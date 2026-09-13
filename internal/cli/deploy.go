@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/family"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/jobs"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runpod"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/sizing"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/store"
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug-cli/internal/family"
+	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug-cli/internal/jobs"
+	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
+	"github.com/adamsiwiec1/runhug-cli/internal/sizing"
+	"github.com/adamsiwiec1/runhug-cli/internal/store"
 )
 
 func cmdDeploy(args []string) error {
@@ -43,7 +43,7 @@ func cmdDeploy(args []string) error {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: runpod-vllm-proxy deploy <org/model>")
+		return fmt.Errorf("usage: runhug-cli deploy <org/model>")
 	}
 	modelID := fs.Arg(0)
 	env := config.Load()
@@ -216,9 +216,9 @@ func cmdDeploy(args []string) error {
 	printKV(os.Stdout, "billing", fmt.Sprintf("scale-to-zero (min workers %d). A running worker is ~$%.2f/hr on %s.", *minWorkers, choice.HourlyUSD, choice.Pool.ID))
 	fmt.Fprintln(os.Stdout)
 	commands(os.Stdout, "Next:",
-		"runpod-vllm-proxy proxy",
+		"runhug-cli proxy",
 		"curl http://127.0.0.1:8080/v1/models",
-		"runpod-vllm-proxy delete "+modelID,
+		"runhug-cli delete "+modelID,
 	)
 	return nil
 }

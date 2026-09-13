@@ -148,6 +148,31 @@ func TestFilterUnknownEngineMatchesLibrary(t *testing.T) {
 	}
 }
 
+func TestSearchFullExpandKeepsLikes(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":"a/b","likes":9,"downloads":3,"tags":["safetensors"]}]`))
+	}))
+	t.Cleanup(srv.Close)
+	c := New("")
+	c.BaseURL = srv.URL
+	c.HTTP = srv.Client()
+	_, err := c.Search(context.Background(), SearchOpts{Query: "qwen", Sort: "relevance", Limit: 5, Full: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "full=true") {
+		t.Fatalf("full: %s", got)
+	}
+	for _, want := range []string{"expand=cardData", "expand=likes", "expand=downloads", "expand=tags"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %s in %s", want, got)
+		}
+	}
+}
+
 func idsOf(models []Model) []string {
 	out := make([]string, len(models))
 	for i, m := range models {

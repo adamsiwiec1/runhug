@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/index"
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug-cli/internal/index"
 )
 
 func cmdIndexSetup(args []string) error {
@@ -22,7 +22,7 @@ func cmdIndexSetup(args []string) error {
 	indexPath := indexFilePath()
 	if index.Exists(indexPath) && !*force {
 		fmt.Fprintf(os.Stderr, "%s  Index already exists at %s\n", yellow("⚠"), indexPath)
-		fmt.Fprintf(os.Stderr, "   Use --force to rebuild, or run: %s\n", cyan("runpod-vllm-proxy index-update"))
+		fmt.Fprintf(os.Stderr, "   Use --force to rebuild, or run: %s\n", cyan("runhug-cli index-update"))
 		return nil
 	}
 
@@ -47,12 +47,12 @@ func cmdIndexSetup(args []string) error {
 	defer cancel()
 
 	client := hf.New(config.Load().HFToken)
-	
+
 	// Fetch models using multiple strategies to get diverse coverage
 	var totalModels int
 	startTime := time.Now()
 	seenModels := make(map[string]bool)
-	
+
 	// Strategy 1: Most downloaded models
 	fmt.Fprintf(os.Stderr, "\r📥 Fetching popular models (downloads)... %d fetched", totalModels)
 	models, err := client.Search(ctx, hf.SearchOpts{
@@ -72,7 +72,7 @@ func cmdIndexSetup(args []string) error {
 		}
 	}
 	time.Sleep(300 * time.Millisecond)
-	
+
 	// Strategy 2: Most liked models
 	fmt.Fprintf(os.Stderr, "\r📥 Fetching popular models (likes)... %d fetched", totalModels)
 	models, err = client.Search(ctx, hf.SearchOpts{
@@ -92,7 +92,7 @@ func cmdIndexSetup(args []string) error {
 		}
 	}
 	time.Sleep(300 * time.Millisecond)
-	
+
 	// Strategy 3: GGUF models
 	fmt.Fprintf(os.Stderr, "\r📥 Fetching GGUF models... %d fetched", totalModels)
 	models, err = client.Search(ctx, hf.SearchOpts{
@@ -112,7 +112,7 @@ func cmdIndexSetup(args []string) error {
 		}
 	}
 	time.Sleep(300 * time.Millisecond)
-	
+
 	// Strategy 4: Safetensors models
 	fmt.Fprintf(os.Stderr, "\r📥 Fetching Safetensors models... %d fetched", totalModels)
 	models, err = client.Search(ctx, hf.SearchOpts{
@@ -132,7 +132,7 @@ func cmdIndexSetup(args []string) error {
 		}
 	}
 	time.Sleep(300 * time.Millisecond)
-	
+
 	// Strategy 5: Search for common model families and use cases
 	keywords := []string{
 		"llama", "qwen", "mistral", "phi", "gemma", "deepseek", "yi",
@@ -172,7 +172,7 @@ func cmdIndexSetup(args []string) error {
 
 	fmt.Fprintf(os.Stderr, "%s Indexed %s models in %s\n", green("✓"), bold(fmt.Sprintf("%d", totalModels)), elapsed.Round(time.Second))
 	fmt.Fprintf(os.Stderr, "%s Saved to %s (%d KB)\n\n", green("✓"), indexPath, sizeKB)
-	fmt.Fprintf(os.Stderr, "Now you can search instantly with: %s\n", cyan("runpod-vllm-proxy search -q \"...\""))
+	fmt.Fprintf(os.Stderr, "Now you can search instantly with: %s\n", cyan("runhug-cli search -q \"...\""))
 
 	return nil
 }
@@ -185,7 +185,7 @@ func cmdIndexUpdate(args []string) error {
 
 	indexPath := indexFilePath()
 	if !index.Exists(indexPath) {
-		fmt.Fprintf(os.Stderr, "%s  No index found. Run: %s\n", yellow("⚠"), cyan("runpod-vllm-proxy index-setup"))
+		fmt.Fprintf(os.Stderr, "%s  No index found. Run: %s\n", yellow("⚠"), cyan("runhug-cli index-setup"))
 		return nil
 	}
 
@@ -200,14 +200,14 @@ func cmdIndexUpdate(args []string) error {
 		return fmt.Errorf("get last update: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "%s Updating index (last update: %s ago)...\n", 
+	fmt.Fprintf(os.Stderr, "%s Updating index (last update: %s ago)...\n",
 		bold("⚡"), formatDuration(time.Since(lastUpdate)))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	client := hf.New(config.Load().HFToken)
-	
+
 	// Fetch recently modified models
 	var totalUpdated int
 	limit := 1000
@@ -216,7 +216,7 @@ func cmdIndexUpdate(args []string) error {
 
 	for {
 		fmt.Fprintf(os.Stderr, "\r📥 Checking for updates... %d updated", totalUpdated)
-		
+
 		models, err := client.Search(ctx, hf.SearchOpts{
 			Task:   "text-generation",
 			Sort:   "downloads",
@@ -260,7 +260,7 @@ func cmdIndexUpdate(args []string) error {
 	idx.SetMetadata("last_update", time.Now().Format(time.RFC3339))
 
 	elapsed := time.Since(startTime)
-	fmt.Fprintf(os.Stderr, "%s Updated %s models in %s\n", 
+	fmt.Fprintf(os.Stderr, "%s Updated %s models in %s\n",
 		green("✓"), bold(fmt.Sprintf("%d", totalUpdated)), elapsed.Round(time.Second))
 
 	return nil
@@ -269,14 +269,14 @@ func cmdIndexUpdate(args []string) error {
 func cmdIndexInfo(args []string) error {
 	indexPath := indexFilePath()
 	bundledPath := bundledIndexPath()
-	
+
 	// Check for user-local index
 	hasLocal := index.Exists(indexPath)
 	hasBundled := bundledPath != "" && index.Exists(bundledPath)
-	
+
 	if !hasLocal && !hasBundled {
 		fmt.Fprintf(os.Stderr, "%s  No index found\n", yellow("⚠"))
-		fmt.Fprintf(os.Stderr, "   Run: %s to create your own index\n", cyan("runpod-vllm-proxy index-setup"))
+		fmt.Fprintf(os.Stderr, "   Run: %s to create your own index\n", cyan("runhug-cli index-setup"))
 		return nil
 	}
 
@@ -299,7 +299,7 @@ func cmdIndexInfo(args []string) error {
 		}
 
 		createdAt, _ := idx.GetMetadata("created_at")
-		
+
 		fileInfo, _ := os.Stat(indexPath)
 		sizeKB := fileInfo.Size() / 1024
 
@@ -316,11 +316,11 @@ func cmdIndexInfo(args []string) error {
 
 		if time.Since(lastUpdate).Hours() > 24*7 {
 			fmt.Fprintf(os.Stdout, "%s  Index is over a week old\n", yellow("⚠"))
-			fmt.Fprintf(os.Stdout, "   Run: %s\n", cyan("runpod-vllm-proxy index-update"))
+			fmt.Fprintf(os.Stdout, "   Run: %s\n", cyan("runhug-cli index-update"))
 			fmt.Fprintln(os.Stdout)
 		}
 	}
-	
+
 	// Show bundled index info
 	if hasBundled {
 		idx, err := index.Open(bundledPath)
@@ -330,7 +330,7 @@ func cmdIndexInfo(args []string) error {
 			fileInfo, _ := os.Stat(bundledPath)
 			sizeKB := fileInfo.Size() / 1024
 			idx.Close()
-			
+
 			if hasLocal {
 				fmt.Fprintln(os.Stdout)
 			}
@@ -340,37 +340,37 @@ func cmdIndexInfo(args []string) error {
 			fmt.Fprintf(os.Stdout, "  %s  %s models\n", dim("Models"), bold(fmt.Sprintf("%d", count)))
 			fmt.Fprintf(os.Stdout, "  %s  %s ago\n", dim("Indexed"), formatDuration(time.Since(lastUpdate)))
 			fmt.Fprintln(os.Stdout)
-			
+
 			if !hasLocal {
 				fmt.Fprintf(os.Stdout, "%s  Using bundled index (ships with package)\n", dim("ℹ"))
-				fmt.Fprintf(os.Stdout, "   Run %s for latest models\n", cyan("runpod-vllm-proxy index-setup"))
+				fmt.Fprintf(os.Stdout, "   Run %s for latest models\n", cyan("runhug-cli index-setup"))
 				fmt.Fprintln(os.Stdout)
 			}
 		}
 	}
 
 	commands(os.Stdout, "Commands:",
-		"runpod-vllm-proxy search -q \"...\"",
-		"runpod-vllm-proxy index-update",
-		"runpod-vllm-proxy index-setup --force",
+		"runhug-cli search -q \"...\"",
+		"runhug-cli index-update",
+		"runhug-cli index-setup --force",
 	)
 
 	return nil
 }
 
 func indexFilePath() string {
-	// Use platform-specific config directory for user-local index
-	configDir, err := os.UserConfigDir()
+	dir, err := config.Dir()
 	if err != nil {
-		configDir = os.TempDir()
+		dir = filepath.Join(os.TempDir(), "runhug-cli")
 	}
-	return filepath.Join(configDir, "runpod-vllm-proxy", "models.db")
+	_ = config.MigrateFileIfMissing(dir, "models.db")
+	return filepath.Join(dir, "models.db")
 }
 
 func bundledIndexPath() string {
 	// Try multiple locations for bundled index
-	
-	// 1. Relative to executable (production: bin/runpod-vllm-proxy -> ../data/models.db)
+
+	// 1. Relative to executable (production: bin/runhug-cli -> ../data/models.db)
 	exePath, err := os.Executable()
 	if err == nil {
 		bundled := filepath.Join(filepath.Dir(exePath), "..", "data", "models.db")
@@ -379,7 +379,7 @@ func bundledIndexPath() string {
 			return absPath
 		}
 	}
-	
+
 	// 2. Working directory (development: run from repo root)
 	if wd, err := os.Getwd(); err == nil {
 		bundled := filepath.Join(wd, "data", "models.db")
@@ -387,7 +387,7 @@ func bundledIndexPath() string {
 			return bundled
 		}
 	}
-	
+
 	// 3. Executable's directory (if data is alongside bin/)
 	if exePath, err := os.Executable(); err == nil {
 		bundled := filepath.Join(filepath.Dir(exePath), "data", "models.db")
@@ -395,7 +395,7 @@ func bundledIndexPath() string {
 			return bundled
 		}
 	}
-	
+
 	return ""
 }
 

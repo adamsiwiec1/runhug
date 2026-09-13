@@ -1,14 +1,14 @@
 import { defineConfig } from "vitepress";
 
-const [owner, repoName] = (process.env.GITHUB_REPOSITORY ?? "adamsiwiec1/runpod-vllm-proxy").split("/");
+const [owner, repoName] = (process.env.GITHUB_REPOSITORY ?? "adamsiwiec1/runhug-cli").split("/");
 const repo = `https://github.com/${owner}/${repoName}`;
 const base = `/${repoName}/`;
 
 export default defineConfig({
-  title: "runpod-vllm-proxy",
-  titleTemplate: ":title · runpod-vllm-proxy",
+  title: "runhug-cli",
+  titleTemplate: ":title · runhug-cli",
   description:
-    "Search Hugging Face, pull a model locally, or deploy Runpod Serverless vLLM behind one OpenAI-compatible proxy.",
+    "Find the best Hugging Face model. Deploy it on Runpod in minutes. Run it for pennies.",
   lang: "en-US",
   base,
   cleanUrls: true,

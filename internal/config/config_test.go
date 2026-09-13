@@ -171,3 +171,97 @@ func TestLoadSanitizesEnvKey(t *testing.T) {
 		t.Fatalf("env %q", Load().RunpodAPIKey)
 	}
 }
+
+func TestConfigPathOverridePrefersRUNHUG(t *testing.T) {
+	t.Setenv(EnvConfig, "/tmp/runhug/registry.json")
+	t.Setenv(EnvConfigLegacy, "/tmp/legacy/registry.json")
+	if got := ConfigPathOverride(); got != "/tmp/runhug/registry.json" {
+		t.Fatalf("got %q", got)
+	}
+	t.Setenv(EnvConfig, "")
+	if got := ConfigPathOverride(); got != "/tmp/legacy/registry.json" {
+		t.Fatalf("legacy got %q", got)
+	}
+}
+
+func TestDirUsesXDGConfigHome(t *testing.T) {
+	base := t.TempDir()
+	t.Setenv(EnvConfig, "")
+	t.Setenv(EnvConfigLegacy, "")
+	t.Setenv("XDG_CONFIG_HOME", base)
+	dir, err := Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(base, "runhug-cli")
+	if dir != want {
+		t.Fatalf("got %q want %q", dir, want)
+	}
+}
+
+func TestDirFallsBackToHomeDotConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(EnvConfig, "")
+	t.Setenv(EnvConfigLegacy, "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", home)
+	dir, err := Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(home, ".config", "runhug-cli")
+	if dir != want {
+		t.Fatalf("got %q want %q", dir, want)
+	}
+}
+
+func TestMigrateFileIfMissingFromLegacy(t *testing.T) {
+	home := t.TempDir()
+	xdg := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv(EnvConfig, "")
+	t.Setenv(EnvConfigLegacy, "")
+	t.Setenv(EnvRunpodAPIKey, "")
+
+	legacy := filepath.Join(home, "Library", "Application Support", "runpod-vllm-proxy")
+	if err := os.MkdirAll(legacy, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	legacyKey := filepath.Join(legacy, "runpod.key")
+	if err := os.WriteFile(legacyKey, []byte("migrated-secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	dir, err := Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := MigrateFileIfMissing(dir, "runpod.key"); err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join(dir, "runpod.key")
+	raw, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "migrated-secret\n" {
+		t.Fatalf("dest %q", raw)
+	}
+	if Load().RunpodAPIKey != "migrated-secret" {
+		t.Fatalf("load after migrate %q", Load().RunpodAPIKey)
+	}
+}
+
+func TestLoadUsesRUNHUGConfigOverride(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(EnvConfig, filepath.Join(dir, "registry.json"))
+	t.Setenv(EnvConfigLegacy, "")
+	t.Setenv(EnvRunpodAPIKey, "")
+	if err := SaveKey("from-runhug"); err != nil {
+		t.Fatal(err)
+	}
+	if Load().RunpodAPIKey != "from-runhug" {
+		t.Fatalf("got %q", Load().RunpodAPIKey)
+	}
+}
