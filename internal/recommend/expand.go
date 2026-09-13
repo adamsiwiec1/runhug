@@ -27,9 +27,13 @@ func Expand(ctx context.Context, raw string, ramGB float64, _ *localllm.Client) 
 		ex.Queries = []string{in.Query}
 		return ex
 	}
-	// First query: preserve distinctive raw tokens from user input.
-	rawTokens := extractDistinctiveTokens(raw)
-	if len(rawTokens) > 0 {
+	// First queries: preserve distinctive raw tokens from user input as separate queries for OR coverage.
+	rawTokens := ExtractDistinctiveTokens(raw)
+	for _, tok := range rawTokens {
+		ex.Queries = append(ex.Queries, tok)
+	}
+	// Also try the full phrase if there are multiple distinctive tokens.
+	if len(rawTokens) > 1 {
 		ex.Queries = append(ex.Queries, strings.Join(rawTokens, " "))
 	}
 	// Add intent-based query if different from raw tokens.
@@ -44,9 +48,9 @@ func Expand(ctx context.Context, raw string, ramGB float64, _ *localllm.Client) 
 	return ex
 }
 
-// extractDistinctiveTokens returns meaningful tokens from raw query,
+// ExtractDistinctiveTokens returns meaningful tokens from raw query,
 // filtering out common stop words and short tokens.
-func extractDistinctiveTokens(raw string) []string {
+func ExtractDistinctiveTokens(raw string) []string {
 	stopWords := map[string]bool{
 		"for": true, "and": true, "the": true, "with": true, "use": true,
 		"case": true, "want": true, "need": true, "that": true, "this": true,
@@ -154,7 +158,7 @@ func uniqQueries(in []string) []string {
 		}
 		seen[k] = true
 		out = append(out, q)
-		if len(out) >= 4 {
+		if len(out) >= 6 {
 			break
 		}
 	}
