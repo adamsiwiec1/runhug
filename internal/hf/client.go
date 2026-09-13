@@ -35,12 +35,12 @@ type SearchOpts struct {
 	Author  string
 	Task    string
 	Library string
-	Filter  string // extra Hub tag (safetensors, gguf, …)
-	License string // license id or tag suffix (apache-2.0, mit, …)
-	Engine  string // vllm, gguf, unknown
+	Filter  string
+	License string // apache-2.0, mit, gemma, other, …
+	Engine  string // vllm, gguf, or any DetectFormat engine string
 	Sort    string // relevance (default), likes, downloads
 	Limit   int
-	Offset  int  // pagination offset
+	Offset  int // Hub has no official offset; ignored by Search
 	Full    bool
 }
 
@@ -124,11 +124,15 @@ func (c *Client) Search(ctx context.Context, opts SearchOpts) ([]Model, error) {
 	}
 	opts.Sort = sortKey
 
+	// likes/downloads: fetch a relevance pool, then re-rank locally.
+	// GET /api/models text relevance is the unsorted default (omit sort).
 	fetchLimit := opts.Limit
 	apiSort := sortKey
-	// likes/downloads: pull a relevance pool of 100, then re-rank locally.
 	if sortKey == "likes" || sortKey == "downloads" {
 		fetchLimit = 100
+		if opts.Limit > fetchLimit {
+			fetchLimit = opts.Limit
+		}
 		apiSort = "relevance"
 	}
 
@@ -148,16 +152,11 @@ func (c *Client) Search(ctx context.Context, opts SearchOpts) ([]Model, error) {
 	for _, f := range searchFilters(opts) {
 		q.Add("filter", f)
 	}
-	// Hub search ranking is the default when sort is omitted.
 	if apiSort != "relevance" {
 		q.Set("sort", apiSort)
 		q.Set("direction", "-1")
 	}
 	q.Set("limit", strconv.Itoa(fetchLimit))
-	if opts.Offset > 0 {
-		// Note: HF API doesn't officially support offset, but we can try
-		// using limit + filtering. For now, document that pagination is limited.
-	}
 	if opts.Full {
 		q.Set("full", "true")
 	}
@@ -176,7 +175,6 @@ func (c *Client) Search(ctx context.Context, opts SearchOpts) ([]Model, error) {
 	}
 	return models, nil
 }
-
 
 func (c *Client) Get(ctx context.Context, repoID string) (*Model, error) {
 	repoID = strings.TrimSpace(strings.TrimPrefix(repoID, "https://huggingface.co/"))

@@ -13,16 +13,11 @@ import (
 
 func Run(args []string) error {
 	if len(args) == 0 {
-		if stdoutIsTTY() && stdinIsTTY() {
-			return runREPL()
-		}
 		printUsage(os.Stdout)
 		return flag.ErrHelp
 	}
 	cmd, rest := args[0], args[1:]
 	switch cmd {
-	case "interactive", "repl", "shell":
-		return cmdInteractive(rest)
 	case "init":
 		return cmdInit(rest)
 	case "search":
@@ -53,12 +48,6 @@ func Run(args []string) error {
 		return cmdGPUs(rest)
 	case "import":
 		return cmdImport(rest)
-	case "index-setup":
-		return cmdIndexSetup(rest)
-	case "index-update":
-		return cmdIndexUpdate(rest)
-	case "index-info":
-		return cmdIndexInfo(rest)
 	case "version", "-v", "--version":
 		fmt.Printf("%s %s\n", version.Name, version.Version)
 		return nil
@@ -75,10 +64,6 @@ func printUsage(w io.Writer) {
 
 Usage:
   runpod-vllm-proxy <command> [flags]
-  runpod-vllm-proxy              Start interactive mode (when stdin is a TTY)
-
-Interactive
-  interactive / repl / shell    Start interactive REPL mode
 
 Setup
   init               Runtime + default local model (--model / --search)
@@ -86,11 +71,8 @@ Setup
   disconnect         Forget the stored key
 
 Search
-  search              Hugging Face (-q/--query, --sort, --limit, --engine, --license)
+  search [query]     Hugging Face (--sort relevance|likes|downloads, --license, --engine, --limit N)
   inspect <model>    Hub card, params, VRAM estimate
-  index-setup        Build local search index for instant searches (one-time, ~2 min)
-  index-update       Update local index with new models
-  index-info         Show local index status and size
 
 Runpod
   deploy <model>     Serverless vLLM (workers min=0)

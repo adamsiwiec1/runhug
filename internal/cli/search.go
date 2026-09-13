@@ -14,31 +14,25 @@ import (
 
 func cmdSearch(args []string) error {
 	fs := newFlagSet("search")
-	var query string
-	fs.StringVar(&query, "query", "", "search query")
-	fs.StringVar(&query, "q", "", "search query (shorthand)")
 	author := fs.String("author", "", "filter by Hugging Face org or user")
 	task := fs.String("task", "text-generation", "pipeline_tag (text-generation, any, …)")
 	library := fs.String("library", "", "library filter (transformers, …)")
-	filter := fs.String("filter", "", "extra Hub tag filter (safetensors, …)")
-	license := fs.String("license", "", "license filter (apache-2.0, mit, …)")
-	engine := fs.String("engine", "", "engine filter (vllm, gguf)")
-	sort := fs.String("sort", "relevance", "relevance (default), likes, downloads")
-	limit := fs.Int("limit", 15, "max results (1-100)")
+	filter := fs.String("filter", "", "extra Hub tag filter (safetensors, gguf, …)")
+	license := fs.String("license", "", "license filter (apache-2.0, mit, gemma, other, …)")
+	engine := fs.String("engine", "", "engine filter (vllm, gguf, …)")
+	sort := fs.String("sort", "relevance", "relevance (default; Hub text search, sort omitted), likes, or downloads (re-rank a 100-hit relevance pool)")
+	limit := fs.Int("limit", 15, "rows to show (1-100)")
 	asJSON := fs.Bool("json", false, "print JSON")
-	copyIdx := fs.Int("copy", 0, "copy MODEL id for this 1-based row to the clipboard")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
 	*limit = clampLimit(*limit)
-	query = strings.TrimSpace(query)
-	if fs.NArg() > 0 {
-		return fmt.Errorf("unexpected args %q — pass the query with -q / --query", strings.Join(fs.Args(), " "))
-	}
+	query := strings.Join(fs.Args(), " ")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	models, meta, err := searchModels(ctx, searchRequest{
+	client := hf.New(config.Load().HFToken)
+	models, err := client.Search(ctx, hf.SearchOpts{
 		Query:   query,
 		Author:  *author,
 		Task:    *task,
@@ -53,39 +47,22 @@ func cmdSearch(args []string) error {
 		return err
 	}
 	if *asJSON {
-		return writeJSON(map[string]any{
-			"models":      models,
-			"rank_source": meta.RankSource,
-			"queries":     meta.Queries,
-			"notes":       meta.Notes,
-		})
+		return writeJSON(models)
 	}
 	printHubResults(os.Stdout, hubView{
-		Query:      query,
-		Models:     models,
-		Sort:       *sort,
-		Limit:      *limit,
-		Command:    quotedSearchCmd(query),
-		RankSource: meta.RankSource,
-		Queries:    meta.Queries,
+		Query:   query,
+		Models:  models,
+		Sort:    *sort,
+		Limit:   *limit,
+		Command: quotedCmd("search", query),
 	})
-	if *copyIdx > 0 {
-		if *copyIdx > len(models) {
-			return fmt.Errorf("--copy %d out of range (1-%d)", *copyIdx, len(models))
-		}
-		id := models[*copyIdx-1].RepoID()
-		if err := copyToClipboard(id); err != nil {
-			return err
-		}
-		fmt.Fprintf(os.Stderr, "%s  %s\n", green("copied"), id)
-	}
 	return nil
 }
 
 func searchAndPrint(query string, opts hubOpts) error {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return fmt.Errorf("usage: runpod-vllm-proxy search -q <query>")
+		return fmt.Errorf("usage: runpod-vllm-proxy search <query>")
 	}
 	if opts.Sort == "" {
 		opts.Sort = "relevance"
@@ -243,7 +220,7 @@ func cmdInspect(args []string) error {
 	if format.Engine == hf.EngineGGUF {
 		next = []string{
 			"runpod-vllm-proxy init --model " + model.RepoID(),
-			"runpod-vllm-proxy search -q " + model.RepoID() + " --sort likes",
+			"runpod-vllm-proxy search " + model.RepoID() + " --sort likes",
 		}
 	}
 	commands(os.Stdout, "Next:", next...)

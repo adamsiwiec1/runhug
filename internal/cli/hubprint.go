@@ -18,7 +18,7 @@ type hubView struct {
 	Limit      int
 	Command    string
 	SkipFooter bool
-	RankSource string // local-llm | heuristics | hub
+	RankSource string
 	Queries    []string
 }
 
@@ -49,9 +49,9 @@ func printHubResults(w io.Writer, v hubView) {
 		fmt.Fprintln(w, yellow("No models on the Hub matched."))
 		fmt.Fprintln(w)
 		commands(w, "Try a broader query:",
-			`runpod-vllm-proxy search -q instruct --sort likes --limit 20`,
-			`runpod-vllm-proxy search -q qwen --engine gguf --limit 20`,
-			`runpod-vllm-proxy search -q instruct --license apache-2.0 --engine vllm`,
+			`runpod-vllm-proxy search instruct --sort likes --limit 20`,
+			`runpod-vllm-proxy search qwen --engine gguf --limit 20`,
+			`runpod-vllm-proxy search instruct --license apache-2.0 --engine vllm`,
 		)
 		return
 	}
@@ -76,40 +76,26 @@ func printHubResults(w io.Writer, v hubView) {
 	dlW := colWidth("DOWNLOADS", dls, 0)
 	engW := colWidth("ENGINE", engines, 0)
 	licW := colWidth("LICENSE", licenses, 16)
-	actW := colWidth("ACTIONS", []string{"🔗 📋"}, 0)
 
-	if v.RankSource != "" {
-		fmt.Fprintf(w, "%s  %s", dim("ranked by"), v.RankSource)
-		if len(v.Queries) > 0 {
-			fmt.Fprintf(w, "   %s %s", dim("queries"), strings.Join(v.Queries, " · "))
-		}
-		fmt.Fprintln(w)
-		fmt.Fprintln(w)
-	}
-
-	fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s  %s\n",
+	fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s\n",
 		dim(padRight("#", 2)),
 		dim(padRight("MODEL", idW)),
 		dim(padRight("LIKES", likeW)),
 		dim(padRight("DOWNLOADS", dlW)),
 		dim(padRight("ENGINE", engW)),
 		dim(padRight("LICENSE", licW)),
-		dim(padRight("ACTIONS", actW)),
 	)
 	for i := range v.Models {
 		id := truncateRunes(ids[i], idW)
-		fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s  %s\n",
+		fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s\n",
 			padRight(fmt.Sprintf("%d", i+1), 2),
 			bold(padRight(id, idW)),
 			dim(padRight(likes[i], likeW)),
 			dim(padRight(dls[i], dlW)),
 			engineTag(formats[i].Engine, engW),
 			dim(padRight(truncateRunes(licenses[i], licW), licW)),
-			actionsCell(ids[i]),
 		)
 	}
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, dim("ACTIONS  🔗 opens Hub  ·  📋 / copy N copies model id  ·  or search --copy N"))
 	fmt.Fprintln(w)
 
 	if v.SkipFooter {
@@ -130,9 +116,6 @@ func printHubResults(w io.Writer, v hubView) {
 	}
 	if v.Command != "" {
 		open = append(open, v.Command+" --sort likes --limit 20")
-		open = append(open, v.Command+" --engine vllm --license apache-2.0")
-	} else {
-		open = append(open, `runpod-vllm-proxy search -q instruct --sort likes --limit 20`)
 	}
 	commands(w, "Next:", open...)
 }
@@ -166,9 +149,9 @@ func colWidth(header string, vals []string, max int) int {
 func sortLabel(sortKey string) string {
 	switch strings.ToLower(strings.TrimSpace(sortKey)) {
 	case "downloads":
-		return "downloads (from relevance pool)"
+		return "downloads"
 	case "likes":
-		return "likes (from relevance pool)"
+		return "likes"
 	case "relevance", "relevant", "rank", "":
 		return "relevance"
 	default:
@@ -190,6 +173,10 @@ func sortHubModels(models []hf.Model, key string) {
 	hf.SortModels(models, key)
 }
 
+func quotedSearchCmd(query string) string {
+	return quotedCmd("search", query)
+}
+
 func quotedCmd(name, query string) string {
 	if query == "" {
 		return "runpod-vllm-proxy " + name
@@ -198,15 +185,4 @@ func quotedCmd(name, query string) string {
 		return fmt.Sprintf("runpod-vllm-proxy %s %q", name, query)
 	}
 	return "runpod-vllm-proxy " + name + " " + query
-}
-
-func quotedSearchCmd(query string) string {
-	query = strings.TrimSpace(query)
-	if query == "" {
-		return "runpod-vllm-proxy search"
-	}
-	if strings.ContainsAny(query, " \t\"'") {
-		return fmt.Sprintf("runpod-vllm-proxy search -q %q", query)
-	}
-	return "runpod-vllm-proxy search -q " + query
 }

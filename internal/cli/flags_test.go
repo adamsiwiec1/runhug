@@ -26,7 +26,7 @@ func TestUsageMentionsSearch(t *testing.T) {
 	var buf bytes.Buffer
 	printUsage(&buf)
 	s := buf.String()
-	for _, want := range []string{"init", "search", "Hugging Face", "inspect", "connect", "API keys", "disconnect", "deploy", "list", "deployments", "proxy", "local add", "--pick", "--limit", "--sort"} {
+	for _, want := range []string{"init", "search", "Hugging Face", "inspect", "connect", "API keys", "disconnect", "deploy", "list", "deployments", "proxy", "local add", "--pick", "--limit", "--sort", "relevance", "--license", "--engine"} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("usage missing %q\n%s", want, s)
 		}

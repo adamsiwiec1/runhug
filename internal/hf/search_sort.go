@@ -26,7 +26,9 @@ func searchFilters(opts SearchOpts) []string {
 	}
 	if lic := strings.TrimSpace(opts.License); lic != "" {
 		lic = strings.TrimPrefix(strings.ToLower(lic), "license:")
-		out = append(out, "license:"+lic)
+		if lic != "other" && lic != "any" {
+			out = append(out, "license:"+lic)
+		}
 	}
 	switch strings.ToLower(strings.TrimSpace(opts.Engine)) {
 	case "gguf":
@@ -51,9 +53,25 @@ func filterByEngine(models []Model, engine string) []Model {
 		got := DetectFormat(m).Engine
 		if got == want {
 			out = append(out, m)
+			continue
+		}
+		// Unknown --engine values are still allowed; match library or tags.
+		if want != EngineVLLM && want != EngineGGUF {
+			if strings.EqualFold(m.LibraryName, engine) || hasTagFold(m, engine) {
+				out = append(out, m)
+			}
 		}
 	}
 	return out
+}
+
+func hasTagFold(m Model, want string) bool {
+	for _, tag := range m.Tags {
+		if strings.EqualFold(tag, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func filterByLicense(models []Model, license string) []Model {
@@ -65,11 +83,50 @@ func filterByLicense(models []Model, license string) []Model {
 	out := models[:0:0]
 	for _, m := range models {
 		got := strings.ToLower(m.License())
-		if got == license || strings.Contains(got, license) {
+		if license == "other" {
+			if !isCommonLicense(got) {
+				out = append(out, m)
+			}
+			continue
+		}
+		if licenseMatch(got, license) {
 			out = append(out, m)
 		}
 	}
 	return out
+}
+
+func licenseMatch(got, want string) bool {
+	if got == "" {
+		return false
+	}
+	if got == want || strings.Contains(got, want) || strings.Contains(want, got) {
+		return true
+	}
+	norm := func(s string) string {
+		s = strings.ReplaceAll(s, "-", "")
+		s = strings.ReplaceAll(s, " ", "")
+		return s
+	}
+	g, w := norm(got), norm(want)
+	return g == w || strings.Contains(g, w) || strings.Contains(w, g)
+}
+
+func isCommonLicense(lic string) bool {
+	if lic == "" {
+		return false
+	}
+	for _, c := range []string{
+		"apache", "mit", "bsd", "gpl", "lgpl", "agpl", "mpl",
+		"cc-by", "cc0", "cc-sa", "gemma", "llama", "qwen",
+		"unlicense", "isc", "zlib", "odc", "openrail",
+		"bigscience", "creativeml", "wtfpl", "artistic",
+	} {
+		if strings.Contains(lic, c) {
+			return true
+		}
+	}
+	return false
 }
 
 // SortModels re-ranks a relevance pool by likes or downloads (descending).

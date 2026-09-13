@@ -107,39 +107,9 @@ func Score(models []hf.Model, in Intent) []Scored {
 			instruct = 1
 		}
 
-		overlap, hasDistinctive := queryOverlap(id, m.PipelineTag, in.Raw, in.Query, in.Task)
-		
-		// When distinctive terms exist in the query, boost matches dramatically.
-		hasDistinctiveQuery := len(ExtractDistinctiveTokens(in.Raw)) > 0
-		overlapWeight := 0.25
-		popWeight := pop
-		credWeight := 0.20
-		instructWeight := 0.14
-		
-		if hasDistinctiveQuery {
-			if hasDistinctive {
-				// Model matches the distinctive term: massive boost, popularity barely matters.
-				overlapWeight = 1.20
-				popWeight = pop * 0.15
-				credWeight = 0.06
-				instructWeight = 0.05
-			} else {
-				// Model does NOT match distinctive term: penalize heavily.
-				popWeight = pop * 0.40
-				credWeight = 0.12
-			}
-		}
-		
-		score := popWeight + credWeight*cred + 0.10*lic + 0.22*sizeFit + instructWeight*instruct
-		score += overlapWeight * overlap
-		
-		// Only apply engine preference when explicitly requested (PreferGGUF set by user flag).
-		// For distinctive queries without explicit engine preference, stay neutral on GGUF vs vLLM.
+		score := pop + 0.20*cred + 0.10*lic + 0.22*sizeFit + 0.14*instruct
 		if in.PreferGGUF && format.Engine == hf.EngineGGUF {
 			score += 0.12
-		} else if in.PreferGGUF && format.Engine == hf.EngineVLLM {
-			// User wants GGUF, penalize vLLM
-			score -= 0.08
 		}
 		if containsAny(id, "base") && instruct == 0 {
 			score -= 0.06
@@ -179,67 +149,6 @@ func Score(models []hf.Model, in Intent) []Scored {
 	}
 	return out
 }
-
-// queryOverlap returns (score, hasDistinctiveMatch).
-// score is 0.0-1.0 based on term overlap.
-// hasDistinctiveMatch is true if any raw distinctive term matched the model id.
-func queryOverlap(id, pipeline, raw, query, task string) (float64, bool) {
-	hay := strings.ToLower(id + " " + pipeline)
-	stopWords := map[string]bool{
-		"for": true, "and": true, "the": true, "with": true, "use": true,
-		"case": true, "want": true, "need": true, "that": true, "this": true,
-		"chat": true, "model": true, "help": true, "find": true, "get": true,
-		"run": true, "try": true, "test": true, "make": true, "can": true,
-		"instruct": true, "coder": true, "code": true, "coding": true,
-	}
-	var terms []string
-	var rawTerms []string
-	for _, part := range []string{raw, query, task} {
-		for _, tok := range strings.Fields(strings.ToLower(part)) {
-			tok = strings.Trim(tok, ",.?!:;\"'+()[]{}")
-			if len(tok) < 3 || stopWords[tok] {
-				continue
-			}
-			terms = append(terms, tok)
-			if part == raw {
-				rawTerms = append(rawTerms, tok)
-			}
-		}
-	}
-	if len(terms) == 0 {
-		return 0, false
-	}
-	hit := 0
-	rawHit := 0
-	seen := map[string]bool{}
-	rawSeen := map[string]bool{}
-	for _, tok := range terms {
-		if seen[tok] {
-			continue
-		}
-		seen[tok] = true
-		if strings.Contains(hay, tok) {
-			hit++
-		}
-	}
-	for _, tok := range rawTerms {
-		if rawSeen[tok] {
-			continue
-		}
-		rawSeen[tok] = true
-		if strings.Contains(hay, tok) {
-			rawHit++
-		}
-	}
-	hasDistinctive := rawHit > 0
-	baseScore := float64(hit) / float64(len(seen))
-	if len(rawTerms) > 0 {
-		rawScore := float64(rawHit) / float64(len(rawTerms))
-		return 0.7*rawScore + 0.3*baseScore, hasDistinctive
-	}
-	return baseScore, hasDistinctive
-}
-
 
 func authorOf(m hf.Model) string {
 	if m.Author != "" {

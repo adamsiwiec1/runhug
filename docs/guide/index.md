@@ -6,7 +6,7 @@ pulls a model locally, and deploys it to
 
 ```bash
 runpod-vllm-proxy init
-runpod-vllm-proxy search -q qwen --sort likes --engine vllm
+runpod-vllm-proxy search qwen --sort likes --engine vllm
 runpod-vllm-proxy inspect Qwen/Qwen2.5-7B-Instruct
 runpod-vllm-proxy connect
 runpod-vllm-proxy deploy Qwen/Qwen2.5-7B-Instruct

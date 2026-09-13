@@ -15,7 +15,7 @@ hero:
 
 features:
   - title: Search
-    details: `search` hits the Hugging Face API. Aligned tables with likes, downloads, engine, and a card URL.
+    details: `search` hits the Hugging Face API (relevance by default). Filter by `--engine` / `--license`; likes and downloads re-rank a relevance pool.
   - title: Pull locally
     details: `init` installs a runtime and the default model, or `--model` / `--search` to pick your own.
   - title: Deploy

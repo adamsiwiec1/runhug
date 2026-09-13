@@ -26,11 +26,8 @@ func TestClampLimitAndSortLabel(t *testing.T) {
 	if clampLimit(0) != 1 || clampLimit(8) != 8 || clampLimit(200) != 100 {
 		t.Fatalf("clamp %d %d %d", clampLimit(0), clampLimit(8), clampLimit(200))
 	}
-	if sortLabel("") != "relevance" || sortLabel("rank") != "relevance" {
-		t.Fatalf("label %q %q", sortLabel(""), sortLabel("rank"))
-	}
-	if sortLabel("likes") != "likes (from relevance pool)" {
-		t.Fatalf("likes label %s", sortLabel("likes"))
+	if sortLabel("rank") != "relevance" || sortLabel("") != "relevance" || sortLabel("likes") != "likes" {
+		t.Fatalf("label %s %s %s", sortLabel("rank"), sortLabel(""), sortLabel("likes"))
 	}
 }
 

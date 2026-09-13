@@ -38,22 +38,19 @@ runpod-vllm-proxy init --search "coding assistant" --pick 1
 ## Search
 
 ```bash
-runpod-vllm-proxy search -q qwen
-runpod-vllm-proxy search --query qwen --sort likes --limit 5
-runpod-vllm-proxy search -q instruct --sort downloads --engine vllm
-runpod-vllm-proxy search -q "instruct coder" --engine gguf --license apache-2.0
+runpod-vllm-proxy search qwen
+runpod-vllm-proxy search qwen --sort likes --limit 5
+runpod-vllm-proxy search instruct --sort downloads --engine vllm
+runpod-vllm-proxy search "instruct coder" --engine gguf --license apache-2.0
 runpod-vllm-proxy inspect Qwen/Qwen2.5-7B-Instruct
 ```
 
-Pass the text with `-q` / `--query` (not a bare positional). Natural-language
-queries are expanded (local LLM when Ollama/llama.cpp/MLX is up, otherwise
-heuristics), fetched from the Hub, then re-ranked by popularity/credibility
-fit — not plain substring match on the model name.
-
-`--sort` is `relevance` (default), `likes`, or `downloads`. `--engine` accepts
-`vllm` or `gguf`; `--license` matches Hub license tags (e.g. `apache-2.0`).
-Results include an **ACTIONS** column: 🔗 opens the Hub card (OSC-8 hyperlink);
-📋 is a compact link; select the MODEL cell to copy the repo id.
+`--sort` is `relevance` (default: Hub text search; the API `sort` param is
+omitted), `likes`, or `downloads`. Popularity sorts fetch up to 100
+relevance hits, then re-rank that pool locally. `--limit` is how many
+rows to show (default 15). `--engine` accepts `vllm`, `gguf`, or any
+other engine string; `--license` matches Hub tags (`apache-2.0`, `mit`,
+`gemma`, `other` for empty or uncommon licenses).
 
 ## Connect to Runpod
 

@@ -45,7 +45,7 @@ func cmdLocalAdd(args []string) error {
 	all := fs.Bool("all", false, "register every scan hit")
 	register := fs.Bool("register", false, "put the pick in the registry instead of searching the Hub")
 	limit := fs.Int("limit", 15, "max Hub rows after a search (1-100)")
-	sortKey := fs.String("sort", "likes", "likes, downloads, lastModified, trendingScore")
+	sortKey := fs.String("sort", "relevance", "relevance (default), likes, or downloads")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}

@@ -119,3 +119,39 @@ func TestSortModels(t *testing.T) {
 		t.Fatal(models[0].ID)
 	}
 }
+
+func TestFilterLicenseOtherAndApacheAlias(t *testing.T) {
+	models := []Model{
+		{ID: "a/apache", Tags: []string{"license:apache-2.0"}},
+		{ID: "a/empty"},
+		{ID: "a/custom", Tags: []string{"license:mystery-1.0"}},
+		{ID: "a/mit", Tags: []string{"license:mit"}},
+	}
+	other := filterByLicense(models, "other")
+	if len(other) != 2 || other[0].ID != "a/empty" || other[1].ID != "a/custom" {
+		t.Fatalf("other %+v", idsOf(other))
+	}
+	apache := filterByLicense(models, "apache")
+	if len(apache) != 1 || apache[0].ID != "a/apache" {
+		t.Fatalf("apache %+v", idsOf(apache))
+	}
+}
+
+func TestFilterUnknownEngineMatchesLibrary(t *testing.T) {
+	models := []Model{
+		{ID: "a/vllm", Tags: []string{"safetensors"}},
+		{ID: "a/mlx", LibraryName: "mlx"},
+	}
+	got := filterByEngine(models, "mlx")
+	if len(got) != 1 || got[0].ID != "a/mlx" {
+		t.Fatalf("%+v", idsOf(got))
+	}
+}
+
+func idsOf(models []Model) []string {
+	out := make([]string, len(models))
+	for i, m := range models {
+		out[i] = m.ID
+	}
+	return out
+}
