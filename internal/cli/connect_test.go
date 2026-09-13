@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/config"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
 )
 
 func TestConnectHelp(t *testing.T) {

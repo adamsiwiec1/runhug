@@ -7,7 +7,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/find"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/find"
 )
 
 func newTab(w io.Writer) *tabwriter.Writer {

@@ -7,6 +7,12 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- `connect` Authorization header sanitization strips BOM/non-ASCII clipboard junk
+- Go module path aligned to `github.com/adamsiwiec1/runpod-vllm-proxy` (matches the GitHub repo)
+
+## [Unreleased]
+
 ### Added
 
 - `connect` / `disconnect` persist a Runpod API key in the user config dir

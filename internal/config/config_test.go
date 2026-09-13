@@ -128,6 +128,22 @@ func TestSanitizeAPIKeyStripsCRLFToValidHeaderToken(t *testing.T) {
 	}
 }
 
+func TestSanitizeAPIKeyStripsBOMAndNonASCII(t *testing.T) {
+	fake := "rpa_testkey_bom"
+	got := SanitizeAPIKey("\ufeff" + fake)
+	if got != fake {
+		t.Fatalf("BOM: got %q", got)
+	}
+	got = SanitizeAPIKey(fake + "\u200b")
+	if got != fake {
+		t.Fatalf("zwsp: got %q", got)
+	}
+	got = SanitizeAPIKey("Bearer\t" + fake + "\n")
+	if got != fake {
+		t.Fatalf("bearer+tab+nl: got %q", got)
+	}
+}
+
 func TestLoadSanitizesDirtyStoredKey(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("RVP_CONFIG", filepath.Join(dir, "registry.json"))

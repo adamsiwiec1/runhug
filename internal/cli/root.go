@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/version"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/version"
 )
 
 func Run(args []string) error {

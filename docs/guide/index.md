@@ -35,7 +35,7 @@ go build -o bin/runpod-vllm-proxy ./cmd/runpod-vllm-proxy
 Or:
 
 ```bash
-go install github.com/adamsiwiec/runpod-vllm-proxy/cmd/runpod-vllm-proxy@latest
+go install github.com/adamsiwiec1/runpod-vllm-proxy/cmd/runpod-vllm-proxy@latest
 ```
 
 ## Next

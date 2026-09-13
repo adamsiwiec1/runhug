@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/runpod"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runpod"
 )
 
 // runpodAPIKeysURL is the official console page for creating or copying API keys.

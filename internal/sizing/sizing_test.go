@@ -3,7 +3,7 @@ package sizing
 import (
 	"testing"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/hf"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
 )
 
 func TestParseParamsFromName(t *testing.T) {

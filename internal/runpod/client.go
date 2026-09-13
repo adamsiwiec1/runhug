@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/version"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/version"
 )
 
 const (

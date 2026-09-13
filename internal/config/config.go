@@ -18,11 +18,13 @@ type Env struct {
 	HFToken      string
 }
 
-// SanitizeAPIKey trims space, strips ASCII controls (including CR/LF), and
-// drops a leading "Bearer " so a pasted or stored key is a valid HTTP token.
-// The value is never logged. An empty result means reject the key.
+// SanitizeAPIKey trims space, strips a UTF-8 BOM, drops ASCII controls
+// (including CR/LF), removes a leading "Bearer ", and keeps only printable
+// ASCII so net/http will accept the Authorization header. The value is never
+// logged. An empty result means reject the key.
 func SanitizeAPIKey(s string) string {
 	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "\ufeff")
 	if s == "" {
 		return ""
 	}
@@ -30,18 +32,21 @@ func SanitizeAPIKey(s string) string {
 	b.Grow(len(s))
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		if c < 32 || c == 127 {
+		// RFC 7230: no CTL in header values. Clipboard paste can also insert
+		// non-ASCII; keep printable ASCII only (token-safe for Bearer).
+		if c < 0x21 || c > 0x7e {
 			continue
 		}
 		b.WriteByte(c)
 	}
-	s = strings.TrimSpace(b.String())
-	const bearer = "bearer "
-	if len(s) >= len(bearer) && strings.EqualFold(s[:len(bearer)], bearer) {
-		s = strings.TrimSpace(s[len(bearer):])
+	s = b.String()
+	const bearer = "bearer"
+	if len(s) > len(bearer) && strings.EqualFold(s[:len(bearer)], bearer) {
+		s = s[len(bearer):]
 	}
 	return s
 }
+
 
 func Load() Env {
 	key := SanitizeAPIKey(os.Getenv(EnvRunpodAPIKey))

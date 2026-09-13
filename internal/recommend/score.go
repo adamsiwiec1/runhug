@@ -5,8 +5,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/hf"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/sizing"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/sizing"
 )
 
 // Known Hub publishers. Likes are Hub "stars".

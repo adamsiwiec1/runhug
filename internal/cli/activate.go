@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/hf"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/local"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/runtime"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/store"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/local"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runtime"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/store"
 )
 
 type localSpec struct {

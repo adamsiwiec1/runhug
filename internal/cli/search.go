@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/family"
-	"github.com/adamsiwiec/runpod-vllm-proxy/internal/hf"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/family"
+	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
 )
 
 func cmdSearch(args []string) error {
