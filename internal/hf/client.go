@@ -40,6 +40,7 @@ type SearchOpts struct {
 	Engine  string // vllm, gguf, unknown
 	Sort    string // relevance (default), likes, downloads
 	Limit   int
+	Offset  int  // pagination offset
 	Full    bool
 }
 
@@ -153,6 +154,10 @@ func (c *Client) Search(ctx context.Context, opts SearchOpts) ([]Model, error) {
 		q.Set("direction", "-1")
 	}
 	q.Set("limit", strconv.Itoa(fetchLimit))
+	if opts.Offset > 0 {
+		// Note: HF API doesn't officially support offset, but we can try
+		// using limit + filtering. For now, document that pagination is limited.
+	}
 	if opts.Full {
 		q.Set("full", "true")
 	}

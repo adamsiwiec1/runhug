@@ -53,6 +53,12 @@ func Run(args []string) error {
 		return cmdGPUs(rest)
 	case "import":
 		return cmdImport(rest)
+	case "index-setup":
+		return cmdIndexSetup(rest)
+	case "index-update":
+		return cmdIndexUpdate(rest)
+	case "index-info":
+		return cmdIndexInfo(rest)
 	case "version", "-v", "--version":
 		fmt.Printf("%s %s\n", version.Name, version.Version)
 		return nil
@@ -82,6 +88,9 @@ Setup
 Search
   search              Hugging Face (-q/--query, --sort, --limit, --engine, --license)
   inspect <model>    Hub card, params, VRAM estimate
+  index-setup        Build local search index for instant searches (one-time, ~2 min)
+  index-update       Update local index with new models
+  index-info         Show local index status and size
 
 Runpod
   deploy <model>     Serverless vLLM (workers min=0)
