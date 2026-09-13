@@ -109,7 +109,7 @@ func printHubResults(w io.Writer, v hubView) {
 		)
 	}
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, dim("ACTIONS  🔗 open Hub  ·  select MODEL to copy  ·  or search --copy N"))
+	fmt.Fprintln(w, dim("ACTIONS  🔗 opens Hub  ·  📋 / copy N copies model id  ·  or search --copy N"))
 	fmt.Fprintln(w)
 
 	if v.SkipFooter {
