@@ -108,8 +108,15 @@ func Score(models []hf.Model, in Intent) []Scored {
 		}
 
 		score := pop + 0.20*cred + 0.10*lic + 0.22*sizeFit + 0.14*instruct
+		score += 0.18 * queryOverlap(id, m.PipelineTag, in.Raw, in.Query, in.Task)
 		if in.PreferGGUF && format.Engine == hf.EngineGGUF {
 			score += 0.12
+		}
+		if !in.PreferGGUF && format.Engine == hf.EngineVLLM {
+			score += 0.10
+		}
+		if !in.PreferGGUF && format.Engine == hf.EngineGGUF {
+			score -= 0.08
 		}
 		if containsAny(id, "base") && instruct == 0 {
 			score -= 0.06
@@ -149,6 +156,40 @@ func Score(models []hf.Model, in Intent) []Scored {
 	}
 	return out
 }
+
+func queryOverlap(id, pipeline, raw, query, task string) float64 {
+	hay := strings.ToLower(id + " " + pipeline)
+	var terms []string
+	for _, part := range []string{raw, query, task} {
+		for _, tok := range strings.Fields(strings.ToLower(part)) {
+			tok = strings.Trim(tok, ",.?!:;\"'+()[]{}")
+			if len(tok) < 3 {
+				continue
+			}
+			switch tok {
+			case "for", "and", "the", "with", "use", "case", "want", "need", "that", "this":
+				continue
+			}
+			terms = append(terms, tok)
+		}
+	}
+	if len(terms) == 0 {
+		return 0
+	}
+	hit := 0
+	seen := map[string]bool{}
+	for _, tok := range terms {
+		if seen[tok] {
+			continue
+		}
+		seen[tok] = true
+		if strings.Contains(hay, tok) {
+			hit++
+		}
+	}
+	return float64(hit) / float64(len(seen))
+}
+
 
 func authorOf(m hf.Model) string {
 	if m.Author != "" {
