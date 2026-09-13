@@ -35,8 +35,10 @@ type SearchOpts struct {
 	Author  string
 	Task    string
 	Library string
-	Filter  string
-	Sort    string
+	Filter  string // extra Hub tag (safetensors, gguf, …)
+	License string // license id or tag suffix (apache-2.0, mit, …)
+	Engine  string // vllm, gguf, unknown
+	Sort    string // relevance (default), likes, downloads
 	Limit   int
 	Full    bool
 }
@@ -112,11 +114,21 @@ func (c *Client) Search(ctx context.Context, opts SearchOpts) ([]Model, error) {
 	if opts.Limit > 100 {
 		opts.Limit = 100
 	}
-	if opts.Sort == "" {
-		opts.Sort = "downloads"
-	}
 	if opts.Task == "" {
 		opts.Task = "text-generation"
+	}
+	sortKey, err := NormalizeSort(opts.Sort)
+	if err != nil {
+		return nil, err
+	}
+	opts.Sort = sortKey
+
+	fetchLimit := opts.Limit
+	apiSort := sortKey
+	// likes/downloads: pull a relevance pool of 100, then re-rank locally.
+	if sortKey == "likes" || sortKey == "downloads" {
+		fetchLimit = 100
+		apiSort = "relevance"
 	}
 
 	q := url.Values{}
@@ -132,12 +144,15 @@ func (c *Client) Search(ctx context.Context, opts SearchOpts) ([]Model, error) {
 	if opts.Library != "" {
 		q.Set("library", opts.Library)
 	}
-	if opts.Filter != "" {
-		q.Set("filter", opts.Filter)
+	for _, f := range searchFilters(opts) {
+		q.Add("filter", f)
 	}
-	q.Set("sort", opts.Sort)
-	q.Set("direction", "-1")
-	q.Set("limit", strconv.Itoa(opts.Limit))
+	// Hub search ranking is the default when sort is omitted.
+	if apiSort != "relevance" {
+		q.Set("sort", apiSort)
+		q.Set("direction", "-1")
+	}
+	q.Set("limit", strconv.Itoa(fetchLimit))
 	if opts.Full {
 		q.Set("full", "true")
 	}
@@ -146,8 +161,17 @@ func (c *Client) Search(ctx context.Context, opts SearchOpts) ([]Model, error) {
 	if err := c.get(ctx, "/api/models?"+q.Encode(), &models); err != nil {
 		return nil, err
 	}
+	models = filterByEngine(models, opts.Engine)
+	models = filterByLicense(models, opts.License)
+	if sortKey == "likes" || sortKey == "downloads" {
+		SortModels(models, sortKey)
+	}
+	if len(models) > opts.Limit {
+		models = models[:opts.Limit]
+	}
 	return models, nil
 }
+
 
 func (c *Client) Get(ctx context.Context, repoID string) (*Model, error) {
 	repoID = strings.TrimSpace(strings.TrimPrefix(repoID, "https://huggingface.co/"))

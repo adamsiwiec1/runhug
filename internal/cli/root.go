@@ -71,7 +71,7 @@ Setup
   disconnect         Forget the stored key
 
 Search
-  search [query]     Hugging Face (--sort likes|downloads, --limit N)
+  search [query]     Hugging Face (--sort relevance|likes|downloads, --limit, --engine, --license)
   inspect <model>    Hub card, params, VRAM estimate
 
 Runpod

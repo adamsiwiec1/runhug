@@ -38,11 +38,16 @@ runpod-vllm-proxy init --search "coding assistant" --pick 1
 ## Search
 
 ```bash
-runpod-vllm-proxy search qwen --sort likes
-runpod-vllm-proxy search qwen --limit 3
-runpod-vllm-proxy search "instruct coder" --filter gguf
+runpod-vllm-proxy search qwen
+runpod-vllm-proxy search qwen --sort likes --limit 5
+runpod-vllm-proxy search instruct --sort downloads --engine vllm
+runpod-vllm-proxy search "instruct coder" --engine gguf --license apache-2.0
 runpod-vllm-proxy inspect Qwen/Qwen2.5-7B-Instruct
 ```
+
+`--sort` is `relevance` (default), `likes`, or `downloads`. For likes/downloads the CLI
+fetches up to 100 relevance hits, then re-ranks. `--engine` accepts `vllm` or `gguf`;
+`--license` matches Hub license tags (e.g. `apache-2.0`).
 
 ## Connect to Runpod
 
