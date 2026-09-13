@@ -71,6 +71,22 @@ func hubLink(id string) string {
 	return "https://huggingface.co/" + id
 }
 
+// osc8 wraps text in an OSC 8 hyperlink when stdout is a color TTY.
+func osc8(url, text string) string {
+	if url == "" || text == "" || !useColor() {
+		return text
+	}
+	esc := string(rune(0x1b))
+	return esc + "]8;;" + url + esc + "\\" + text + esc + "]8;;" + esc + "\\"
+}
+
+func actionsCell(id string) string {
+	url := hubLink(id)
+	// 🔗 opens Hub. 📋 is the same compact link (repo id lives in the URL path);
+	// select the MODEL column to copy the plain name.
+	return osc8(url, "🔗") + " " + osc8(url, "📋")
+}
+
 func padRight(s string, n int) string {
 	if n <= 0 {
 		return s

@@ -26,6 +26,7 @@ func cmdSearch(args []string) error {
 	sort := fs.String("sort", "relevance", "relevance (default), likes, downloads")
 	limit := fs.Int("limit", 15, "max results (1-100)")
 	asJSON := fs.Bool("json", false, "print JSON")
+	copyIdx := fs.Int("copy", 0, "copy MODEL id for this 1-based row to the clipboard")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
@@ -35,10 +36,9 @@ func cmdSearch(args []string) error {
 		return fmt.Errorf("unexpected args %q — pass the query with -q / --query", strings.Join(fs.Args(), " "))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	client := hf.New(config.Load().HFToken)
-	models, err := client.Search(ctx, hf.SearchOpts{
+	models, meta, err := searchModels(ctx, searchRequest{
 		Query:   query,
 		Author:  *author,
 		Task:    *task,
@@ -53,15 +53,32 @@ func cmdSearch(args []string) error {
 		return err
 	}
 	if *asJSON {
-		return writeJSON(models)
+		return writeJSON(map[string]any{
+			"models":      models,
+			"rank_source": meta.RankSource,
+			"queries":     meta.Queries,
+			"notes":       meta.Notes,
+		})
 	}
 	printHubResults(os.Stdout, hubView{
-		Query:   query,
-		Models:  models,
-		Sort:    *sort,
-		Limit:   *limit,
-		Command: quotedSearchCmd(query),
+		Query:      query,
+		Models:     models,
+		Sort:       *sort,
+		Limit:      *limit,
+		Command:    quotedSearchCmd(query),
+		RankSource: meta.RankSource,
+		Queries:    meta.Queries,
 	})
+	if *copyIdx > 0 {
+		if *copyIdx > len(models) {
+			return fmt.Errorf("--copy %d out of range (1-%d)", *copyIdx, len(models))
+		}
+		id := models[*copyIdx-1].RepoID()
+		if err := copyToClipboard(id); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "%s  %s\n", green("copied"), id)
+	}
 	return nil
 }
 

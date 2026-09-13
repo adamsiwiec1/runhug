@@ -18,6 +18,8 @@ type hubView struct {
 	Limit      int
 	Command    string
 	SkipFooter bool
+	RankSource string // local-llm | heuristics | hub
+	Queries    []string
 }
 
 type hubOpts struct {
@@ -74,26 +76,40 @@ func printHubResults(w io.Writer, v hubView) {
 	dlW := colWidth("DOWNLOADS", dls, 0)
 	engW := colWidth("ENGINE", engines, 0)
 	licW := colWidth("LICENSE", licenses, 16)
+	actW := colWidth("ACTIONS", []string{"🔗 📋"}, 0)
 
-	fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s\n",
+	if v.RankSource != "" {
+		fmt.Fprintf(w, "%s  %s", dim("ranked by"), v.RankSource)
+		if len(v.Queries) > 0 {
+			fmt.Fprintf(w, "   %s %s", dim("queries"), strings.Join(v.Queries, " · "))
+		}
+		fmt.Fprintln(w)
+		fmt.Fprintln(w)
+	}
+
+	fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s  %s\n",
 		dim(padRight("#", 2)),
 		dim(padRight("MODEL", idW)),
 		dim(padRight("LIKES", likeW)),
 		dim(padRight("DOWNLOADS", dlW)),
 		dim(padRight("ENGINE", engW)),
 		dim(padRight("LICENSE", licW)),
+		dim(padRight("ACTIONS", actW)),
 	)
 	for i := range v.Models {
 		id := truncateRunes(ids[i], idW)
-		fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s\n",
+		fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s  %s\n",
 			padRight(fmt.Sprintf("%d", i+1), 2),
 			bold(padRight(id, idW)),
 			dim(padRight(likes[i], likeW)),
 			dim(padRight(dls[i], dlW)),
 			engineTag(formats[i].Engine, engW),
 			dim(padRight(truncateRunes(licenses[i], licW), licW)),
+			actionsCell(ids[i]),
 		)
 	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, dim("ACTIONS  🔗 open Hub  ·  select MODEL to copy  ·  or search --copy N"))
 	fmt.Fprintln(w)
 
 	if v.SkipFooter {

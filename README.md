@@ -45,10 +45,15 @@ runpod-vllm-proxy search -q "instruct coder" --engine gguf --license apache-2.0
 runpod-vllm-proxy inspect Qwen/Qwen2.5-7B-Instruct
 ```
 
-Pass the text with `-q` / `--query` (not a bare positional). `--sort` is `relevance`
-(default), `likes`, or `downloads`. For likes/downloads the CLI fetches up to 100
-relevance hits, then re-ranks. `--engine` accepts `vllm` or `gguf`; `--license`
-matches Hub license tags (e.g. `apache-2.0`).
+Pass the text with `-q` / `--query` (not a bare positional). Natural-language
+queries are expanded (local LLM when Ollama/llama.cpp/MLX is up, otherwise
+heuristics), fetched from the Hub, then re-ranked by popularity/credibility
+fit — not plain substring match on the model name.
+
+`--sort` is `relevance` (default), `likes`, or `downloads`. `--engine` accepts
+`vllm` or `gguf`; `--license` matches Hub license tags (e.g. `apache-2.0`).
+Results include an **ACTIONS** column: 🔗 opens the Hub card (OSC-8 hyperlink);
+📋 is a compact link; select the MODEL cell to copy the repo id.
 
 ## Connect to Runpod
 
