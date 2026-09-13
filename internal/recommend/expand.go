@@ -21,10 +21,20 @@ type Expansion struct {
 // local LLM is used later to re-rank Hub candidates, not to invent search terms.
 func Expand(ctx context.Context, raw string, ramGB float64, _ *localllm.Client) Expansion {
 	in := ParseIntent(raw, ramGB)
-	ex := Expansion{Intent: in, Source: "heuristics", Queries: []string{in.Query}}
+	ex := Expansion{Intent: in, Source: "heuristics", Queries: []string{}}
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
+		ex.Queries = []string{in.Query}
 		return ex
+	}
+	// First query: preserve distinctive raw tokens from user input.
+	rawTokens := extractDistinctiveTokens(raw)
+	if len(rawTokens) > 0 {
+		ex.Queries = append(ex.Queries, strings.Join(rawTokens, " "))
+	}
+	// Add intent-based query if different from raw tokens.
+	if in.Query != "" {
+		ex.Queries = append(ex.Queries, in.Query)
 	}
 	// Extra Hub-friendly seeds from the raw text (family names, task words).
 	for _, seed := range hubSeeds(raw, in) {
@@ -32,6 +42,27 @@ func Expand(ctx context.Context, raw string, ramGB float64, _ *localllm.Client) 
 	}
 	ex.Queries = uniqQueries(ex.Queries)
 	return ex
+}
+
+// extractDistinctiveTokens returns meaningful tokens from raw query,
+// filtering out common stop words and short tokens.
+func extractDistinctiveTokens(raw string) []string {
+	stopWords := map[string]bool{
+		"for": true, "and": true, "the": true, "with": true, "use": true,
+		"case": true, "want": true, "need": true, "that": true, "this": true,
+		"chat": true, "model": true, "help": true, "find": true, "get": true,
+		"run": true, "try": true, "test": true, "make": true, "can": true,
+		"how": true, "what": true, "which": true, "when": true, "where": true,
+	}
+	var tokens []string
+	for _, word := range strings.Fields(strings.ToLower(raw)) {
+		word = strings.Trim(word, ",.?!:;\"'+()[]{}")
+		if len(word) < 3 || stopWords[word] {
+			continue
+		}
+		tokens = append(tokens, word)
+	}
+	return tokens
 }
 
 func hubSeeds(raw string, in Intent) []string {

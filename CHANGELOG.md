@@ -7,8 +7,14 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Interactive REPL mode: run `runpod-vllm-proxy` with no args (when stdin is a TTY) or `runpod-vllm-proxy interactive` to start a `runpod-vllm-proxy>` prompt with commands: `search`, `copy N`, `inspect`, `deploy`, `connect`, `status`, `list`, `help`, `quit`
+
 ### Changed
 - `search` expands natural-language queries via local LLM (when running) or heuristics, then ranks Hub hits (not literal name-only match)
+- Search now preserves distinctive raw query terms in Hub searches (e.g., "chat heretic cybersecurity" includes those terms, not just generic "instruct")
+- Search scoring weights raw query term matches higher (60%) to surface more relevant results for niche queries
+- ACTIONS column: 🔗 opens Hub (clickable link), 📋 is plain text (use `copy N` command or `search --copy N` to copy model id)
 - Search table adds an ACTIONS column (🔗 Hub link, 📋 compact link)
 - `search` takes `-q` / `--query` instead of a positional query
 - `search --sort` defaults to `relevance`; `likes` / `downloads` re-rank a 100-hit relevance pool

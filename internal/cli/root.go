@@ -13,11 +13,16 @@ import (
 
 func Run(args []string) error {
 	if len(args) == 0 {
+		if stdoutIsTTY() && stdinIsTTY() {
+			return runREPL()
+		}
 		printUsage(os.Stdout)
 		return flag.ErrHelp
 	}
 	cmd, rest := args[0], args[1:]
 	switch cmd {
+	case "interactive", "repl", "shell":
+		return cmdInteractive(rest)
 	case "init":
 		return cmdInit(rest)
 	case "search":
@@ -64,6 +69,10 @@ func printUsage(w io.Writer) {
 
 Usage:
   runpod-vllm-proxy <command> [flags]
+  runpod-vllm-proxy              Start interactive mode (when stdin is a TTY)
+
+Interactive
+  interactive / repl / shell    Start interactive REPL mode
 
 Setup
   init               Runtime + default local model (--model / --search)

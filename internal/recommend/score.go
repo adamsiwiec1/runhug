@@ -108,7 +108,7 @@ func Score(models []hf.Model, in Intent) []Scored {
 		}
 
 		score := pop + 0.20*cred + 0.10*lic + 0.22*sizeFit + 0.14*instruct
-		score += 0.18 * queryOverlap(id, m.PipelineTag, in.Raw, in.Query, in.Task)
+		score += 0.25 * queryOverlap(id, m.PipelineTag, in.Raw, in.Query, in.Task)
 		if in.PreferGGUF && format.Engine == hf.EngineGGUF {
 			score += 0.12
 		}
@@ -159,25 +159,34 @@ func Score(models []hf.Model, in Intent) []Scored {
 
 func queryOverlap(id, pipeline, raw, query, task string) float64 {
 	hay := strings.ToLower(id + " " + pipeline)
+	stopWords := map[string]bool{
+		"for": true, "and": true, "the": true, "with": true, "use": true,
+		"case": true, "want": true, "need": true, "that": true, "this": true,
+		"chat": true, "model": true, "help": true, "find": true, "get": true,
+		"run": true, "try": true, "test": true, "make": true, "can": true,
+		"instruct": true, "coder": true, "code": true, "coding": true,
+	}
 	var terms []string
+	var rawTerms []string
 	for _, part := range []string{raw, query, task} {
 		for _, tok := range strings.Fields(strings.ToLower(part)) {
 			tok = strings.Trim(tok, ",.?!:;\"'+()[]{}")
-			if len(tok) < 3 {
-				continue
-			}
-			switch tok {
-			case "for", "and", "the", "with", "use", "case", "want", "need", "that", "this":
+			if len(tok) < 3 || stopWords[tok] {
 				continue
 			}
 			terms = append(terms, tok)
+			if part == raw {
+				rawTerms = append(rawTerms, tok)
+			}
 		}
 	}
 	if len(terms) == 0 {
 		return 0
 	}
 	hit := 0
+	rawHit := 0
 	seen := map[string]bool{}
+	rawSeen := map[string]bool{}
 	for _, tok := range terms {
 		if seen[tok] {
 			continue
@@ -187,7 +196,21 @@ func queryOverlap(id, pipeline, raw, query, task string) float64 {
 			hit++
 		}
 	}
-	return float64(hit) / float64(len(seen))
+	for _, tok := range rawTerms {
+		if rawSeen[tok] {
+			continue
+		}
+		rawSeen[tok] = true
+		if strings.Contains(hay, tok) {
+			rawHit++
+		}
+	}
+	baseScore := float64(hit) / float64(len(seen))
+	if len(rawTerms) > 0 {
+		rawScore := float64(rawHit) / float64(len(rawTerms))
+		return 0.6*rawScore + 0.4*baseScore
+	}
+	return baseScore
 }
 
 

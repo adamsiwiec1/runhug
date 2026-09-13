@@ -82,9 +82,8 @@ func osc8(url, text string) string {
 
 func actionsCell(id string) string {
 	url := hubLink(id)
-	// 🔗 opens Hub. 📋 is the same compact link (repo id lives in the URL path);
-	// select the MODEL column to copy the plain name.
-	return osc8(url, "🔗") + " " + osc8(url, "📋")
+	// 🔗 opens Hub via OSC-8 hyperlink. 📋 is plain text (copy via --copy N or interactive 'copy N').
+	return osc8(url, "🔗") + " 📋"
 }
 
 func padRight(s string, n int) string {

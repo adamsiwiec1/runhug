@@ -2,6 +2,7 @@ package recommend
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -21,6 +22,60 @@ func TestExpandHeuristics(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("queries %+v", ex.Queries)
+	}
+}
+
+func TestExpandDistinctiveTerms(t *testing.T) {
+	ex := Expand(context.Background(), "chat heretic cybersecurity", 8, nil)
+	if ex.Source != "heuristics" {
+		t.Fatalf("source %s", ex.Source)
+	}
+	foundHeretic := false
+	foundCybersecurity := false
+	for _, q := range ex.Queries {
+		qLower := strings.ToLower(q)
+		if strings.Contains(qLower, "heretic") {
+			foundHeretic = true
+		}
+		if strings.Contains(qLower, "cybersecurity") {
+			foundCybersecurity = true
+		}
+	}
+	if !foundHeretic || !foundCybersecurity {
+		t.Fatalf("expected queries to contain 'heretic' and 'cybersecurity', got: %+v", ex.Queries)
+	}
+}
+
+func TestExtractDistinctiveTokens(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected []string
+	}{
+		{
+			input:    "chat heretic cybersecurity",
+			expected: []string{"heretic", "cybersecurity"},
+		},
+		{
+			input:    "coding assistant for scripts",
+			expected: []string{"coding", "assistant", "scripts"},
+		},
+		{
+			input:    "the model with chat",
+			expected: []string{},
+		},
+	}
+	for _, tt := range tests {
+		got := extractDistinctiveTokens(tt.input)
+		if len(got) != len(tt.expected) {
+			t.Errorf("extractDistinctiveTokens(%q) = %v, want %v", tt.input, got, tt.expected)
+			continue
+		}
+		for i := range got {
+			if got[i] != tt.expected[i] {
+				t.Errorf("extractDistinctiveTokens(%q) = %v, want %v", tt.input, got, tt.expected)
+				break
+			}
+		}
 	}
 }
 
