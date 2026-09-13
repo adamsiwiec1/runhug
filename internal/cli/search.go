@@ -17,8 +17,10 @@ func cmdSearch(args []string) error {
 	author := fs.String("author", "", "filter by Hugging Face org or user")
 	task := fs.String("task", "text-generation", "pipeline_tag (text-generation, any, …)")
 	library := fs.String("library", "", "library filter (transformers, …)")
-	filter := fs.String("filter", "", "extra Hub tag filter (safetensors, gguf, …)")
-	sort := fs.String("sort", "likes", "likes, downloads, lastModified, trendingScore")
+	filter := fs.String("filter", "", "extra Hub tag filter (safetensors, …)")
+	license := fs.String("license", "", "license filter (apache-2.0, mit, …)")
+	engine := fs.String("engine", "", "engine filter (vllm, gguf)")
+	sort := fs.String("sort", "relevance", "relevance (default), likes, downloads")
 	limit := fs.Int("limit", 15, "max results (1-100)")
 	asJSON := fs.Bool("json", false, "print JSON")
 	if err := parseFlags(fs, args); err != nil {
@@ -36,6 +38,8 @@ func cmdSearch(args []string) error {
 		Task:    *task,
 		Library: *library,
 		Filter:  *filter,
+		License: *license,
+		Engine:  *engine,
 		Sort:    *sort,
 		Limit:   *limit,
 	})
@@ -61,7 +65,7 @@ func searchAndPrint(query string, opts hubOpts) error {
 		return fmt.Errorf("usage: runpod-vllm-proxy search <query>")
 	}
 	if opts.Sort == "" {
-		opts.Sort = "likes"
+		opts.Sort = "relevance"
 	}
 	opts.Limit = clampLimit(opts.Limit)
 	if opts.Command == "" {
@@ -83,7 +87,7 @@ func searchAndPrint(query string, opts hubOpts) error {
 
 func searchHub(query, sort, task, filter string, limit int) ([]hf.Model, error) {
 	if sort == "" {
-		sort = "likes"
+		sort = "relevance"
 	}
 	if task == "" {
 		task = "any"

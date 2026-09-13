@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -49,7 +48,8 @@ func printHubResults(w io.Writer, v hubView) {
 		fmt.Fprintln(w)
 		commands(w, "Try a broader query:",
 			`runpod-vllm-proxy search instruct --sort likes --limit 20`,
-			`runpod-vllm-proxy search qwen --filter gguf --limit 20`,
+			`runpod-vllm-proxy search qwen --engine gguf --limit 20`,
+			`runpod-vllm-proxy search instruct --license apache-2.0 --engine vllm`,
 		)
 		return
 	}
@@ -114,6 +114,7 @@ func printHubResults(w io.Writer, v hubView) {
 	}
 	if v.Command != "" {
 		open = append(open, v.Command+" --sort likes --limit 20")
+		open = append(open, v.Command+" --engine vllm --license apache-2.0")
 	}
 	commands(w, "Next:", open...)
 }
@@ -146,16 +147,12 @@ func colWidth(header string, vals []string, max int) int {
 
 func sortLabel(sortKey string) string {
 	switch strings.ToLower(strings.TrimSpace(sortKey)) {
-	case "rank":
-		return "rank (likes, downloads, publisher, size)"
 	case "downloads":
-		return "downloads"
-	case "lastmodified":
-		return "lastModified"
-	case "trendingscore":
-		return "trendingScore"
-	case "likes", "":
-		return "likes"
+		return "downloads (from relevance pool)"
+	case "likes":
+		return "likes (from relevance pool)"
+	case "relevance", "relevant", "rank", "":
+		return "relevance"
 	default:
 		return sortKey
 	}
@@ -172,16 +169,7 @@ func clampLimit(n int) int {
 }
 
 func sortHubModels(models []hf.Model, key string) {
-	switch strings.ToLower(key) {
-	case "downloads":
-		sort.SliceStable(models, func(i, j int) bool {
-			return models[i].Downloads > models[j].Downloads
-		})
-	case "likes":
-		sort.SliceStable(models, func(i, j int) bool {
-			return models[i].Likes > models[j].Likes
-		})
-	}
+	hf.SortModels(models, key)
 }
 
 func quotedCmd(name, query string) string {
