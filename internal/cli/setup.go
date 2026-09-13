@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runtime"
+	"github.com/adamsiwiec1/runhug-cli/internal/runtime"
 )
 
 func cmdLocalSetup(args []string) error {

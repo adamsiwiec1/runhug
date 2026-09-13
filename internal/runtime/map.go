@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
+	"github.com/adamsiwiec1/runhug-cli/internal/hf"
 )
 
 var sizeToken = regexp.MustCompile(`(?i)(?:^|[^0-9])(\d+(?:\.\d+)?)b(?:[-_]|$)`)

@@ -1,28 +1,34 @@
-# runpod-vllm-proxy
+# runhug-cli
 
-Search [Hugging Face](https://huggingface.co), pull a model locally, and
-deploy it to [Runpod Serverless vLLM](https://docs.runpod.io/serverless/vllm/get-started).
-The CLI stays in the terminal: **search**, **init**, **connect**, **deploy**,
+**Find the best model. Deploy it in minutes. Run it for pennies.**
+
+CLI to run [Hugging Face](https://huggingface.co) models on
+[Runpod](https://docs.runpod.io/serverless/vllm/get-started) easily: find the
+best models for a use case via NLP/vector search, deploy in minutes, and
+list/manage endpoints — faster than the UI. Pull locally when you want; one
+OpenAI-compatible proxy either way.
+
+Commands stay in the terminal: **search**, **init**, **connect**, **deploy**,
 **list**, **proxy**.
 
 ## Install
 
 ```bash
-go install github.com/adamsiwiec1/runpod-vllm-proxy/cmd/runpod-vllm-proxy@latest
+go install github.com/adamsiwiec1/runhug-cli/cmd/runhug-cli@latest
 ```
 
 From a clone:
 
 ```bash
-git clone https://github.com/adamsiwiec1/runpod-vllm-proxy.git
-cd runpod-vllm-proxy
-go build -o bin/runpod-vllm-proxy ./cmd/runpod-vllm-proxy
+git clone https://github.com/adamsiwiec1/runhug-cli.git
+cd runhug-cli
+go build -o bin/runhug-cli ./cmd/runhug-cli
 ```
 
 ## First run
 
 ```bash
-runpod-vllm-proxy init
+runhug-cli init
 ```
 
 `init` installs a local runtime if needed (Ollama by default) and recommends
@@ -30,54 +36,84 @@ runpod-vllm-proxy init
 search the Hub and pick something else.
 
 ```bash
-runpod-vllm-proxy init --yes
-runpod-vllm-proxy init --model qwen3:8b
-runpod-vllm-proxy init --search "coding assistant" --pick 1
+runhug-cli init --yes
+runhug-cli init --model qwen3:8b
+runhug-cli init --search "coding assistant" --pick 1
 ```
 
 ## Search
 
 ```bash
-runpod-vllm-proxy search qwen
-runpod-vllm-proxy search qwen --sort likes --limit 5
-runpod-vllm-proxy search instruct --sort downloads --engine vllm
-runpod-vllm-proxy search "instruct coder" --engine gguf --license apache-2.0
-runpod-vllm-proxy inspect Qwen/Qwen2.5-7B-Instruct
+runhug-cli search qwen
+runhug-cli search -q cybersec
+runhug-cli search qwen --sort likes --limit 5
+runhug-cli search instruct --sort downloads --engine vllm
+runhug-cli search "instruct coder" --engine gguf --license apache-2.0
+runhug-cli inspect Qwen/Qwen2.5-7B-Instruct
 ```
 
-`--sort` is `relevance` (default: Hub text search; the API `sort` param is
-omitted), `likes`, or `downloads`. Popularity sorts fetch up to 100
-relevance hits, then re-rank that pool locally. `--limit` is how many
-rows to show (default 15). `--engine` accepts `vllm`, `gguf`, or any
-other engine string; `--license` matches Hub tags (`apache-2.0`, `mit`,
-`gemma`, `other` for empty or uncommon licenses).
+`-q` / `--query` is the same as a positional query. If both are set,
+`--query` wins.
+
+Search matches **repo id, tags, pipeline tag, and the model card
+description** (Hub `full=true`, plus a bounded card `Get` when the list
+omits it — no weight downloads). Relevance is local token overlap;
+description and tag hits are boosted, then likes break ties.
+
+The Hub `search=` API mostly matches repo id / author, so a short query
+also fires a few extra list calls (max 4): documented aliases, distinctive
+tokens, and sometimes `task=any` or a tag `filter=`. Aliases:
+
+- `hacking` / `hack` → also `pentest`, `offsec`, `cybersecurity`, `bug hunter`
+- `offsec` → also `pentest`, `red team`, `cyber`
+- `cybersec` → also `cybersecurity`
+
+`--sort` is `relevance` (default; Hub `sort` omitted), `likes`, or
+`downloads`. Popularity sorts still build that expanded pool (up to 100
+after union), then re-rank locally — they do not ask the Hub to sort by
+likes. `--limit` is how many rows to show (default 15). `--engine`
+accepts `vllm`, `gguf`, or any other engine string; `--license` matches
+Hub tags (`apache-2.0`, `mit`, `gemma`, `other` for empty or uncommon
+licenses). The table may shorten MODEL; `--word-wrap` / `-ww` prints the
+full repo id. **Next:** always uses the full repo id.
+
+The Hub has **no public semantic model-search API**. Website search and
+`GET /api/models?search=` are lexical (repo id / author; cards are a
+separate full-text index). After that recall, `--sort relevance` can
+re-rank the pool with embeddings: local Ollama `nomic-embed-text` if
+it is already pulled, otherwise Hugging Face Inference
+`sentence-transformers/all-MiniLM-L6-v2` when `HF_TOKEN` is set.
+`--semantic` is on when an embedder is available; `--no-semantic` keeps
+lexical scoring. Chat models such as Qwen2.5-1.5B-Instruct are not used
+as embedders.
 
 ## Connect to Runpod
 
 Runpod's public API is a Bearer key (no OAuth for this CLI). `connect` prints
 [https://console.runpod.io/user/credentials?tab=api-key](https://console.runpod.io/user/credentials?tab=api-key)
-(it does not open a browser). Paste a key; it is saved next to the registry
-(`runpod.key`, mode `0600`) and never printed. `RUNPOD_API_KEY` still wins when
-set.
+(it does not open a browser). Paste a key; it is saved under
+`~/.config/runhug-cli/` next to the registry (`runpod.key`, mode `0600`) and
+never printed. Existing configs from `runpod-vllm-proxy` are migrated on load.
+`RUNPOD_API_KEY` still wins when set.
 
 ```bash
-runpod-vllm-proxy connect
-runpod-vllm-proxy connect --key "$RUNPOD_API_KEY"
-runpod-vllm-proxy disconnect
+runhug-cli connect
+runhug-cli connect --key "$RUNPOD_API_KEY"
+runhug-cli disconnect
 ```
 
 If you are already connected, `connect` says so without reprinting the secret
 and offers to replace the stored key. A rejected key is not saved.
 
-`HF_TOKEN` is only for gated Hub models and is not stored.
+`HF_TOKEN` is for gated Hub models and optional Inference embeddings. It is not stored.
 
 ## Deploy, list, proxy
 
 ```bash
-runpod-vllm-proxy search qwen
-runpod-vllm-proxy deploy Qwen/Qwen2.5-7B-Instruct
-runpod-vllm-proxy list
-runpod-vllm-proxy proxy
+runhug-cli search qwen
+runhug-cli deploy Qwen/Qwen2.5-7B-Instruct
+runhug-cli list
+runhug-cli proxy
 ```
 
 One Serverless endpoint per model. Workers default to min=0. `list` shows the
@@ -92,8 +128,8 @@ curl http://127.0.0.1:8080/v1/models
 ## Models already on this machine
 
 ```bash
-runpod-vllm-proxy local add                 # list Ollama / GGUF on disk
-runpod-vllm-proxy local add --pick 1        # search the Hub for that name
+runhug-cli local add                 # list Ollama / GGUF on disk
+runhug-cli local add --pick 1        # search the Hub for that name
 ```
 
 `local add --pick 1` on `gemma4:e4b` searches Hugging Face for `gemma4`.
@@ -104,9 +140,9 @@ LM Studio caches, `$RVP_CACHE`, and `$RVP_MODELS`.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `HF_TOKEN` | gated or private Hub models | Hugging Face token (never printed, not stored) |
+| `HF_TOKEN` | gated or private Hub models; optional Inference embeddings | Hugging Face token (never printed, not stored) |
 | `RUNPOD_API_KEY` | if you have not run `connect` | [API key](https://docs.runpod.io/get-started/api-keys) |
-| `RVP_CONFIG` | no | Override registry path (key file is stored beside it) |
+| `RUNHUG_CONFIG` | no | Override registry path (key file beside it; `RVP_CONFIG` still accepted) |
 | `RVP_MODELS` | no | Extra directories to scan for GGUF |
 | `RVP_CACHE` | no | Override GGUF cache |
 | `NO_COLOR` | no | Disable ANSI colors |
@@ -144,7 +180,7 @@ npm ci && npm run docs:build   # VitePress, Node 22, contributors / CI only
 
 ## Notes
 
-- Hub: `GET /api/models` and `GET /api/models/{org}/{name}`.
+- Hub: `GET /api/models` (lexical `search=`; no semantic model-search API) and `GET /api/models/{org}/{name}`.
 - Runpod management: [API v2](https://docs.runpod.io/api-reference-v2/overview).
 - Worker image is pinned to [worker-vllm v2.27.0](https://github.com/runpod-workers/worker-vllm/releases/tag/v2.27.0).
 - Runpod also ships an agent plugin for pods and `runpodctl`:

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
 )
 
 const (
@@ -54,20 +56,23 @@ func (m Model) UpstreamModel() string {
 }
 
 func DefaultPath() (string, error) {
-	if override := strings.TrimSpace(os.Getenv("RVP_CONFIG")); override != "" {
+	if override := config.ConfigPathOverride(); override != "" {
 		return override, nil
 	}
-	dir, err := os.UserConfigDir()
+	dir, err := config.Dir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "runpod-vllm-proxy", "registry.json"), nil
+	return filepath.Join(dir, "registry.json"), nil
 }
 
 func Load() (*Registry, string, error) {
 	path, err := DefaultPath()
 	if err != nil {
 		return nil, "", err
+	}
+	if override := config.ConfigPathOverride(); override == "" {
+		_ = config.MigrateFileIfMissing(filepath.Dir(path), "registry.json")
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {

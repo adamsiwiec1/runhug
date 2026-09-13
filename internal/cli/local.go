@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/find"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/local"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runtime"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/store"
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug-cli/internal/find"
+	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug-cli/internal/local"
+	"github.com/adamsiwiec1/runhug-cli/internal/runtime"
+	"github.com/adamsiwiec1/runhug-cli/internal/store"
 )
 
 func cmdLocal(args []string) error {
@@ -171,7 +171,7 @@ func localPickCmd(pick int) string {
 	if pick < 1 {
 		return ""
 	}
-	return fmt.Sprintf("runpod-vllm-proxy local add --pick %d", pick)
+	return fmt.Sprintf("runhug-cli local add --pick %d", pick)
 }
 
 func registerFound(reg *store.Registry, hits []find.Found, pick int, all, listOnly, doRegister bool, query, name string, opts hubOpts) error {
@@ -185,8 +185,8 @@ func registerFound(reg *store.Registry, hits []find.Found, pick int, all, listOn
 			return searchAndPrint(hubQueryFromName(query), opts)
 		}
 		commands(w, "Search Hugging Face anyway:",
-			`runpod-vllm-proxy search instruct --sort likes --limit 20`,
-			`runpod-vllm-proxy search "coding assistant" --limit 20`,
+			`runhug-cli search instruct --sort likes --limit 20`,
+			`runhug-cli search "coding assistant" --limit 20`,
 		)
 		return nil
 	}
@@ -196,7 +196,7 @@ func registerFound(reg *store.Registry, hits []find.Found, pick int, all, listOn
 
 	if pick > 0 {
 		if pick < 1 || pick > len(hits) {
-			return fmt.Errorf("--pick must be 1..%d  (example: runpod-vllm-proxy local add --pick %d)", len(hits), examplePick(hits))
+			return fmt.Errorf("--pick must be 1..%d  (example: runhug-cli local add --pick %d)", len(hits), examplePick(hits))
 		}
 		if !doRegister && !all {
 			if opts.Command == "" {
@@ -333,9 +333,9 @@ func cmdLocalStart(args []string) error {
 	printKV(os.Stdout, "openai", cyan(m.BaseURL))
 	fmt.Fprintln(os.Stdout)
 	commands(os.Stdout, "Next:",
-		"runpod-vllm-proxy proxy",
-		"runpod-vllm-proxy search qwen --sort likes",
-		"runpod-vllm-proxy connect",
+		"runhug-cli proxy",
+		"runhug-cli search qwen --sort likes",
+		"runhug-cli connect",
 	)
 	return nil
 }

@@ -110,3 +110,11 @@ func truncateRunes(s string, n int) string {
 	r := []rune(s)
 	return string(r[:n-1]) + "…"
 }
+
+// displayModel ellipsizes repo ids for aligned Hub tables unless --word-wrap/-ww.
+func displayModel(s string, n int, wrap bool) string {
+	if wrap {
+		return s
+	}
+	return truncateRunes(s, n)
+}

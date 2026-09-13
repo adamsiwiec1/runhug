@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/store"
+	"github.com/adamsiwiec1/runhug-cli/internal/store"
 )
 
 func TestModelsAndUnknown(t *testing.T) {

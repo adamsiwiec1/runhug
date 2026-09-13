@@ -7,9 +7,9 @@ import (
 	"sort"
 	"syscall"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/proxy"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/store"
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug-cli/internal/proxy"
+	"github.com/adamsiwiec1/runhug-cli/internal/store"
 )
 
 func cmdProxy(args []string) error {

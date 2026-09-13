@@ -8,12 +8,12 @@ for third-party CLIs. `connect` prints
 Gated Hub weights also need `HF_TOKEN` (not stored).
 
 ```bash
-runpod-vllm-proxy connect
-runpod-vllm-proxy search qwen2.5 instruct
-runpod-vllm-proxy inspect Qwen/Qwen2.5-7B-Instruct
-runpod-vllm-proxy deploy Qwen/Qwen2.5-7B-Instruct
-runpod-vllm-proxy list
-runpod-vllm-proxy proxy
+runhug-cli connect
+runhug-cli search qwen2.5 instruct
+runhug-cli inspect Qwen/Qwen2.5-7B-Instruct
+runhug-cli deploy Qwen/Qwen2.5-7B-Instruct
+runhug-cli list
+runhug-cli proxy
 ```
 
 `inspect` / `deploy` size VRAM from Hub safetensors metadata and pick the

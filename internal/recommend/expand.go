@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/localllm"
+	"github.com/adamsiwiec1/runhug-cli/internal/localllm"
 )
 
 type Expansion struct {

@@ -1,4 +1,4 @@
-module github.com/adamsiwiec1/runpod-vllm-proxy
+module github.com/adamsiwiec1/runhug-cli
 
 go 1.26.3
 

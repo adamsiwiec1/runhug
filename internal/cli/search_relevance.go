@@ -6,25 +6,23 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/index"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/localllm"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/recommend"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runtime"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/store"
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug-cli/internal/index"
+	"github.com/adamsiwiec1/runhug-cli/internal/semantic"
 )
 
 type searchRequest struct {
-	Query   string
-	Author  string
-	Task    string
-	Library string
-	Filter  string
-	License string
-	Engine  string
-	Sort    string
-	Limit   int
+	Query           string
+	Author          string
+	Task            string
+	Library         string
+	Filter          string
+	License         string
+	Engine          string
+	Sort            string
+	Limit           int
+	DisableSemantic bool
 }
 
 type searchMeta struct {
@@ -44,147 +42,41 @@ func searchModels(ctx context.Context, req searchRequest) ([]hf.Model, searchMet
 	if index.Exists(indexPath) {
 		return searchLocalIndex(ctx, req, sortKey)
 	}
-	
+
 	// Try bundled index
 	bundledPath := bundledIndexPath()
 	if index.Exists(bundledPath) {
 		return searchBundledIndex(ctx, req, sortKey, bundledPath)
 	}
 
-	// Fall back to HF API
+	// Fall back to HF API (alias expansion + card descriptions + optional semantic rank).
 	client := hf.New(config.Load().HFToken)
-	meta := searchMeta{RankSource: "hub"}
-
-	// Natural-language / relevance path: expand → fetch pool → score.
-	useSemantic := sortKey == "relevance" || strings.TrimSpace(req.Query) != ""
-	if !useSemantic {
-		models, err := client.Search(ctx, hf.SearchOpts{
-			Query:   req.Query,
-			Author:  req.Author,
-			Task:    req.Task,
-			Library: req.Library,
-			Filter:  req.Filter,
-			License: req.License,
-			Engine:  req.Engine,
-			Sort:    sortKey,
-			Limit:   req.Limit,
-		})
-		return models, meta, err
+	meta := searchMeta{
+		RankSource: "hub",
+		Queries:    hf.HubSearchQueries(req.Query),
 	}
-
-	llm := localSearchLLM(ctx)
-	ram := recommend.RAMGB()
-	ex := recommend.Expand(ctx, req.Query, ram, llm)
-	// Search is for Hub discovery (often Runpod deploy) — do not drop large models
-	// because of laptop RAM caps from ParseIntent.
-	ex.Intent.MaxParamsB = 0
-	// Only set engine preference when user explicitly requests it.
-	// When no --engine flag, keep PreferGGUF from intent (neutral for distinctive queries).
-	if strings.EqualFold(req.Engine, "gguf") {
-		ex.Intent.PreferGGUF = true
-	} else if req.Engine == "vllm" || req.Engine == "safetensors" {
-		ex.Intent.PreferGGUF = false
+	models, note, err := searchRanked(ctx, client, hf.SearchOpts{
+		Query:   req.Query,
+		Author:  req.Author,
+		Task:    req.Task,
+		Library: req.Library,
+		Filter:  req.Filter,
+		License: req.License,
+		Engine:  req.Engine,
+	}, sortKey, req.Limit, !req.DisableSemantic)
+	if err != nil {
+		return nil, meta, err
 	}
-	// else: keep the PreferGGUF from ParseIntent (often true for local contexts)
-	meta.Queries = ex.Queries
-	meta.Notes = ex.Notes
-	if ex.Source == "local-llm" {
-		meta.RankSource = "local-llm + hub"
+	if note != "" {
+		meta.Notes = note
+		fmt.Fprintln(os.Stderr, dim(note))
+	}
+	if sortKey == "likes" || sortKey == "downloads" {
+		meta.RankSource = sortKey + " (from expanded pool)"
+	} else if strings.HasPrefix(note, "semantic rank") {
+		meta.RankSource = "semantic + hub"
 	} else {
-		meta.RankSource = "heuristics + hub"
-	}
-
-	task := req.Task
-	if task == "" || task == "text-generation" {
-		// Keep text-generation default for Hub; intent may still be chat/code.
-		task = "text-generation"
-	}
-
-	poolLimit := 100
-	seen := map[string]hf.Model{}
-	for _, q := range ex.Queries {
-		batch, err := client.Search(ctx, hf.SearchOpts{
-			Query:   q,
-			Author:  req.Author,
-			Task:    task,
-			Library: req.Library,
-			Filter:  req.Filter,
-			License: req.License,
-			Engine:  req.Engine,
-			Sort:    "relevance",
-			Limit:   poolLimit,
-		})
-		if err != nil {
-			return nil, meta, err
-		}
-		for _, m := range batch {
-			id := m.RepoID()
-			if id == "" {
-				continue
-			}
-			if _, ok := seen[id]; !ok {
-				seen[id] = m
-			}
-		}
-	}
-	pool := make([]hf.Model, 0, len(seen))
-	for _, m := range seen {
-		pool = append(pool, m)
-	}
-
-	scored := recommend.Score(pool, ex.Intent)
-	models := make([]hf.Model, 0, len(scored))
-	for _, s := range scored {
-		models = append(models, s.Model)
-	}
-	// If scoring filtered everything (e.g. size caps), fall back to Hub order.
-	if len(models) == 0 {
-		models = pool
-		meta.RankSource = "hub"
-	} else {
-		meta.RankSource = "heuristics + hub"
-	}
-
-	// Optional local-LLM re-rank of the scored shortlist (does not invent Hub queries).
-	if llm != nil && sortKey == "relevance" && len(models) > 1 {
-		ids := make([]string, len(models))
-		byID := map[string]hf.Model{}
-		for i, m := range models {
-			ids[i] = m.RepoID()
-			byID[ids[i]] = m
-		}
-		ordered, notes, err := recommend.Rerank(ctx, req.Query, ids, llm)
-		if err == nil && len(ordered) > 0 {
-			out := make([]hf.Model, 0, len(ordered))
-			for _, id := range ordered {
-				if m, ok := byID[id]; ok {
-					out = append(out, m)
-				}
-			}
-			if len(out) > 0 {
-				models = out
-				meta.RankSource = "local-llm rerank + hub"
-				if notes != "" {
-					meta.Notes = notes
-				}
-			}
-		} else if err != nil {
-			// Keep heuristics ranking; local models often fail JSON — stay quiet.
-			_ = err
-		}
-	}
-
-	switch sortKey {
-	case "likes", "downloads":
-		hf.SortModels(models, sortKey)
-		meta.RankSource = sortKey + " (from semantic pool)"
-	}
-
-	if len(models) > req.Limit {
-		models = models[:req.Limit]
-	}
-	if meta.Notes != "" && strings.Contains(meta.RankSource, "local-llm") {
-		fmt.Fprintln(os.Stderr, dim(meta.Notes))
+		meta.RankSource = "hub + descriptions"
 	}
 	return models, meta, nil
 }
@@ -204,14 +96,13 @@ func searchIndexAtPath(ctx context.Context, req searchRequest, sortKey string, p
 	}
 	defer idx.Close()
 
-	meta := searchMeta{RankSource: source}
+	meta := searchMeta{RankSource: source, Queries: hf.HubSearchQueries(req.Query)}
 
-	// Get distinctive tokens for boost calculation
-	ram := recommend.RAMGB()
-	ex := recommend.Expand(ctx, req.Query, ram, nil)
-	meta.Queries = ex.Queries
+	q := req.Query
+	if extra := hf.AliasTerms(req.Query); len(extra) > 0 {
+		q = strings.TrimSpace(req.Query + " " + strings.Join(extra, " "))
+	}
 
-	// Search local index
 	filters := index.SearchFilters{
 		Author:      req.Author,
 		Library:     req.Library,
@@ -219,62 +110,32 @@ func searchIndexAtPath(ctx context.Context, req searchRequest, sortKey string, p
 		PipelineTag: req.Task,
 		Engine:      req.Engine,
 		Sort:        sortKey,
-		Limit:       100, // Get pool for ranking
+		Limit:       100,
 	}
 
-	models, err := idx.Search(ctx, req.Query, filters)
+	models, err := idx.Search(ctx, q, filters)
 	if err != nil {
 		return nil, searchMeta{}, fmt.Errorf("search local index: %w", err)
 	}
 
-	// Apply distinctive term ranking if relevance sort
 	if sortKey == "relevance" {
-		ex.Intent.MaxParamsB = 0
-		if strings.EqualFold(req.Engine, "gguf") {
-			ex.Intent.PreferGGUF = true
-		} else if req.Engine == "vllm" || req.Engine == "safetensors" {
-			ex.Intent.PreferGGUF = false
+		hf.ScoreRelevance(models, req.Query)
+		meta.RankSource = source + " + descriptions"
+		var note string
+		models, note = rankSemantic(ctx, req.Query, sortKey, !req.DisableSemantic, models, func() semantic.Embedder {
+			return semantic.Discover(ctx, config.Load().HFToken)
+		})
+		if note != "" {
+			meta.Notes = note
+			fmt.Fprintln(os.Stderr, dim(note))
 		}
-
-		scored := recommend.Score(models, ex.Intent)
-		models = make([]hf.Model, 0, len(scored))
-		for _, s := range scored {
-			models = append(models, s.Model)
+		if strings.HasPrefix(note, "semantic rank") {
+			meta.RankSource = source + " + semantic"
 		}
-		meta.RankSource = source + " + heuristics"
 	}
-
-	// Apply final sort for likes/downloads after distinctive ranking
 	if sortKey == "likes" || sortKey == "downloads" {
-		// Split into distinctive matches and non-matches
-		hasDistinctive := len(recommend.ExtractDistinctiveTokens(req.Query)) > 0
-		if hasDistinctive {
-			var distinctive, nonDistinctive []hf.Model
-			for _, m := range models {
-				isDistinctive := false
-				idLower := strings.ToLower(m.RepoID())
-				for _, tok := range recommend.ExtractDistinctiveTokens(req.Query) {
-					if strings.Contains(idLower, tok) {
-						isDistinctive = true
-						break
-					}
-				}
-				if isDistinctive {
-					distinctive = append(distinctive, m)
-				} else {
-					nonDistinctive = append(nonDistinctive, m)
-				}
-			}
-			// Sort each group separately
-			hf.SortModels(distinctive, sortKey)
-			hf.SortModels(nonDistinctive, sortKey)
-			// Concatenate: distinctive first, then non-distinctive
-			models = append(distinctive, nonDistinctive...)
-			meta.RankSource = source + " + " + sortKey + " (distinctive first)"
-		} else {
-			hf.SortModels(models, sortKey)
-			meta.RankSource = source + " + " + sortKey
-		}
+		hf.SortModels(models, sortKey)
+		meta.RankSource = source + " + " + sortKey
 	}
 
 	// Limit results
@@ -283,20 +144,4 @@ func searchIndexAtPath(ctx context.Context, req searchRequest, sortKey string, p
 	}
 
 	return models, meta, nil
-}
-
-func localSearchLLM(ctx context.Context) *localllm.Client {
-	snap := runtime.Detect()
-	eng := snap.Preferred("")
-	if eng == nil || !eng.Running || eng.BaseURL == "" {
-		return nil
-	}
-	model := ""
-	if reg, _, err := store.Load(); err == nil && reg != nil {
-		if cur, ok := reg.Models[reg.Current]; ok && cur.Kind() == store.BackendLocal {
-			model = cur.UpstreamModel()
-		}
-	}
-	c := localllm.New(eng.BaseURL, model)
-	return c
 }

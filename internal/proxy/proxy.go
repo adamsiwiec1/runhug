@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runpod"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/store"
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
+	"github.com/adamsiwiec1/runhug-cli/internal/store"
 )
 
 type Server struct {
@@ -54,7 +54,7 @@ func (s *Server) models(w http.ResponseWriter, r *http.Request) {
 	}
 	data := make([]item, 0, len(s.Registry.Models))
 	for id := range s.Registry.Models {
-		data = append(data, item{ID: id, Object: "model", OwnedBy: "runpod-vllm-proxy"})
+		data = append(data, item{ID: id, Object: "model", OwnedBy: "runhug-cli"})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": data})
 }

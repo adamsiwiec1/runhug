@@ -1,6 +1,6 @@
 # Support
 
-runpod-vllm-proxy is volunteer-maintained. Please use the right channel:
+runhug-cli is volunteer-maintained. Please use the right channel:
 
 | Need | Where |
 | --- | --- |

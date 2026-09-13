@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +11,12 @@ import (
 const (
 	EnvRunpodAPIKey = "RUNPOD_API_KEY"
 	EnvHFToken      = "HF_TOKEN"
-	storedKeyName   = "runpod.key"
+	EnvConfig       = "RUNHUG_CONFIG"
+	EnvConfigLegacy = "RVP_CONFIG"
+
+	appDirName    = "runhug-cli"
+	oldAppDirName = "runpod-vllm-proxy"
+	storedKeyName = "runpod.key"
 )
 
 type Env struct {
@@ -47,7 +53,6 @@ func SanitizeAPIKey(s string) string {
 	return s
 }
 
-
 func Load() Env {
 	key := SanitizeAPIKey(os.Getenv(EnvRunpodAPIKey))
 	if key == "" {
@@ -61,7 +66,7 @@ func Load() Env {
 
 func (e Env) RequireRunpod() error {
 	if e.RunpodAPIKey == "" {
-		return fmt.Errorf("not connected — run `runpod-vllm-proxy connect` or set %s", EnvRunpodAPIKey)
+		return fmt.Errorf("not connected — run `runhug-cli connect` or set %s", EnvRunpodAPIKey)
 	}
 	return nil
 }
@@ -70,15 +75,100 @@ func (e Env) Connected() bool {
 	return e.RunpodAPIKey != ""
 }
 
-func Dir() (string, error) {
-	if override := strings.TrimSpace(os.Getenv("RVP_CONFIG")); override != "" {
-		return filepath.Dir(override), nil
+// ConfigPathOverride returns RUNHUG_CONFIG, or RVP_CONFIG during transition.
+func ConfigPathOverride() string {
+	if v := strings.TrimSpace(os.Getenv(EnvConfig)); v != "" {
+		return v
 	}
-	dir, err := os.UserConfigDir()
+	return strings.TrimSpace(os.Getenv(EnvConfigLegacy))
+}
+
+// XDGConfigHome returns $XDG_CONFIG_HOME when set, otherwise ~/.config.
+func XDGConfigHome() (string, error) {
+	if v := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); v != "" {
+		return v, nil
+	}
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "runpod-vllm-proxy"), nil
+	return filepath.Join(home, ".config"), nil
+}
+
+// Dir is the preferred config directory: ~/.config/runhug-cli
+// (or $XDG_CONFIG_HOME/runhug-cli). Env overrides point at a registry file;
+// Dir is that file's parent.
+func Dir() (string, error) {
+	if override := ConfigPathOverride(); override != "" {
+		return filepath.Dir(override), nil
+	}
+	base, err := XDGConfigHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, appDirName), nil
+}
+
+// LegacyDirs lists prior config directories used by runpod-vllm-proxy.
+func LegacyDirs() []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(p string) {
+		if p == "" || seen[p] {
+			return
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		add(filepath.Join(home, "Library", "Application Support", oldAppDirName))
+	}
+	if dir, err := os.UserConfigDir(); err == nil {
+		add(filepath.Join(dir, oldAppDirName))
+	}
+	return out
+}
+
+// MigrateFileIfMissing copies name from a legacy dir into destDir when dest is absent.
+func MigrateFileIfMissing(destDir, name string) error {
+	dest := filepath.Join(destDir, name)
+	if _, err := os.Stat(dest); err == nil {
+		return nil
+	} else if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, oldDir := range LegacyDirs() {
+		src := filepath.Join(oldDir, name)
+		in, err := os.Open(src)
+		if err != nil {
+			continue
+		}
+		if err := os.MkdirAll(destDir, 0o700); err != nil {
+			in.Close()
+			return err
+		}
+		out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			in.Close()
+			if os.IsExist(err) {
+				return nil
+			}
+			return err
+		}
+		_, copyErr := io.Copy(out, in)
+		closeErr := out.Close()
+		in.Close()
+		if copyErr != nil {
+			_ = os.Remove(dest)
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		_ = os.Chmod(dest, 0o600)
+		return nil
+	}
+	return nil
 }
 
 func StoredKeyPath() (string, error) {
@@ -126,6 +216,10 @@ func loadStoredKey() string {
 	path, err := StoredKeyPath()
 	if err != nil {
 		return ""
+	}
+	// Do not migrate into an explicit override path (tests / custom installs).
+	if ConfigPathOverride() == "" {
+		_ = MigrateFileIfMissing(filepath.Dir(path), storedKeyName)
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {

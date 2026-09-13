@@ -1,14 +1,14 @@
 cff-version: 1.2.0
-title: runpod-vllm-proxy
+title: runhug-cli
 message: If you use this software, please cite it using these metadata.
 type: software
 authors:
   - family-names: Siwiec
     given-names: Adam
-repository-code: https://github.com/adamsiwiec1/runpod-vllm-proxy
+repository-code: https://github.com/adamsiwiec1/runhug-cli
 license: MIT
 version: 0.1.0
 abstract: >-
-  CLI to search Hugging Face models, serve them locally with llama.cpp,
-  or deploy them as Runpod Serverless vLLM endpoints behind one
-  OpenAI-compatible proxy.
+  CLI to find the best Hugging Face models for a use case, deploy them on
+  Runpod in minutes, and manage endpoints from the terminal — faster than
+  the UI. Spirit: Find the best model. Deploy it in minutes. Run it for pennies.

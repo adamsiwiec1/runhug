@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
+	"github.com/adamsiwiec1/runhug-cli/internal/hf"
 )
 
 type hubView struct {
@@ -20,12 +20,14 @@ type hubView struct {
 	SkipFooter bool
 	RankSource string
 	Queries    []string
+	WordWrap   bool
 }
 
 type hubOpts struct {
-	Sort    string
-	Limit   int
-	Command string
+	Sort     string
+	Limit    int
+	Command  string
+	WordWrap bool
 }
 
 func printHubResults(w io.Writer, v hubView) {
@@ -49,9 +51,9 @@ func printHubResults(w io.Writer, v hubView) {
 		fmt.Fprintln(w, yellow("No models on the Hub matched."))
 		fmt.Fprintln(w)
 		commands(w, "Try a broader query:",
-			`runpod-vllm-proxy search instruct --sort likes --limit 20`,
-			`runpod-vllm-proxy search qwen --engine gguf --limit 20`,
-			`runpod-vllm-proxy search instruct --license apache-2.0 --engine vllm`,
+			`runhug-cli search instruct --sort likes --limit 20`,
+			`runhug-cli search qwen --engine gguf --limit 20`,
+			`runhug-cli search instruct --license apache-2.0 --engine vllm`,
 		)
 		return
 	}
@@ -71,7 +73,11 @@ func printHubResults(w io.Writer, v hubView) {
 		engines[i] = string(f.Engine)
 		licenses[i] = dash(m.License())
 	}
-	idW := colWidth("MODEL", ids, 48)
+	idMax := 48
+	if v.WordWrap {
+		idMax = 0
+	}
+	idW := colWidth("MODEL", ids, idMax)
 	likeW := colWidth("LIKES", likes, 0)
 	dlW := colWidth("DOWNLOADS", dls, 0)
 	engW := colWidth("ENGINE", engines, 0)
@@ -86,7 +92,7 @@ func printHubResults(w io.Writer, v hubView) {
 		dim(padRight("LICENSE", licW)),
 	)
 	for i := range v.Models {
-		id := truncateRunes(ids[i], idW)
+		id := displayModel(ids[i], idW, v.WordWrap)
 		fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s\n",
 			padRight(fmt.Sprintf("%d", i+1), 2),
 			bold(padRight(id, idW)),
@@ -111,8 +117,8 @@ func printHubResults(w io.Writer, v hubView) {
 	id := v.Models[shown-1].RepoID()
 	open := []string{
 		hubLink(id),
-		"runpod-vllm-proxy inspect " + id,
-		"runpod-vllm-proxy deploy " + id,
+		"runhug-cli inspect " + id,
+		"runhug-cli deploy " + id,
 	}
 	if v.Command != "" {
 		open = append(open, v.Command+" --sort likes --limit 20")
@@ -179,10 +185,10 @@ func quotedSearchCmd(query string) string {
 
 func quotedCmd(name, query string) string {
 	if query == "" {
-		return "runpod-vllm-proxy " + name
+		return "runhug-cli " + name
 	}
 	if strings.ContainsAny(query, " \t\"'") {
-		return fmt.Sprintf("runpod-vllm-proxy %s %q", name, query)
+		return fmt.Sprintf("runhug-cli %s %q", name, query)
 	}
-	return "runpod-vllm-proxy " + name + " " + query
+	return "runhug-cli " + name + " " + query
 }

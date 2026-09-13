@@ -12,7 +12,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
+	"github.com/adamsiwiec1/runhug-cli/internal/hf"
 )
 
 // Index manages the local model search database.
@@ -116,7 +116,7 @@ func (idx *Index) InsertModel(m hf.Model) error {
 			pipeline_tag = excluded.pipeline_tag,
 			last_modified = excluded.last_modified,
 			indexed_at = strftime('%s', 'now')
-	`, m.ID, m.Author, cardDescription(m), string(tagsJSON), m.Likes, m.Downloads,
+	`, m.ID, m.Author, m.CardDescription(), string(tagsJSON), m.Likes, m.Downloads,
 		m.LibraryName, m.License(), m.PipelineTag, lastMod.Unix())
 
 	return err
@@ -126,7 +126,7 @@ func (idx *Index) InsertModel(m hf.Model) error {
 func (idx *Index) Search(ctx context.Context, query string, filters SearchFilters) ([]hf.Model, error) {
 	// Build search tokens
 	tokens := buildSearchTokens(query)
-	
+
 	// Build SQL query with filters
 	sqlQuery := `
 		SELECT m.id, m.author, m.description, m.tags, m.likes, m.downloads,
@@ -213,6 +213,7 @@ func (idx *Index) Search(ctx context.Context, query string, filters SearchFilter
 		}
 
 		json.Unmarshal([]byte(tagsJSON), &m.Tags)
+		m.Description = desc
 		if lastMod > 0 {
 			m.LastModified = time.Unix(lastMod, 0).Format(time.RFC3339)
 		}
@@ -292,26 +293,6 @@ func buildSearchTokens(query string) []string {
 	}
 
 	return result
-}
-
-// cardDescription extracts description from model card data.
-func cardDescription(m hf.Model) string {
-	if m.CardData != nil {
-		// Try to extract description from various fields
-		if desc, ok := m.CardData["description"].(string); ok && desc != "" {
-			if len(desc) > 500 {
-				desc = desc[:500]
-			}
-			return desc
-		}
-		if text, ok := m.CardData["text"].(string); ok && text != "" {
-			if len(text) > 500 {
-				text = text[:500]
-			}
-			return text
-		}
-	}
-	return ""
 }
 
 // Exists returns true if the index database file exists.

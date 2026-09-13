@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/config"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/hf"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/local"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/runtime"
-	"github.com/adamsiwiec1/runpod-vllm-proxy/internal/store"
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug-cli/internal/local"
+	"github.com/adamsiwiec1/runhug-cli/internal/runtime"
+	"github.com/adamsiwiec1/runhug-cli/internal/store"
 )
 
 type localSpec struct {
@@ -161,11 +161,11 @@ func printInstalled(m store.Model) {
 	}
 	fmt.Fprintln(w)
 	commands(w, "Next:",
-		"runpod-vllm-proxy search qwen --sort likes",
-		"runpod-vllm-proxy inspect "+m.HFRepo,
-		"runpod-vllm-proxy connect",
-		"runpod-vllm-proxy deploy Qwen/Qwen2.5-7B-Instruct",
-		"runpod-vllm-proxy proxy",
+		"runhug-cli search qwen --sort likes",
+		"runhug-cli inspect "+m.HFRepo,
+		"runhug-cli connect",
+		"runhug-cli deploy Qwen/Qwen2.5-7B-Instruct",
+		"runhug-cli proxy",
 	)
 }
 

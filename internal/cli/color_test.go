@@ -28,4 +28,11 @@ func TestPadAndTruncate(t *testing.T) {
 	if truncateRunes("abcdef", 4) != "abc…" {
 		t.Fatalf("trunc %q", truncateRunes("abcdef", 4))
 	}
+	long := "org/model-with-an-extremely-long-identifier"
+	if displayModel(long, 8, false) != truncateRunes(long, 8) {
+		t.Fatalf("default should ellipsize: %q", displayModel(long, 8, false))
+	}
+	if displayModel(long, 8, true) != long {
+		t.Fatalf("word-wrap should keep full id: %q", displayModel(long, 8, true))
+	}
 }

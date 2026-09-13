@@ -19,7 +19,7 @@ jobs:
           go-version-file: go.mod
       - run: go test ./...
       - run: go vet ./...
-      - run: go build -o /tmp/runpod-vllm-proxy ./cmd/runpod-vllm-proxy
+      - run: go build -o /tmp/runhug-cli ./cmd/runhug-cli
 
   docs:
     runs-on: ubuntu-latest

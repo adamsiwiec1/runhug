@@ -1,6 +1,6 @@
 # Governance
 
-runpod-vllm-proxy is a small open-source project.
+runhug-cli is a small open-source project.
 
 ## Roles
 
