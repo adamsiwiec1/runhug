@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/adamsiwiec1/runhug-cli/internal/hf"
 )
 
 func TestWizardAliasesRegistered(t *testing.T) {
@@ -113,5 +115,82 @@ func TestUsageMentionsWizard(t *testing.T) {
 	}
 	if !strings.Contains(s, "guide") {
 		t.Fatalf("usage missing guide alias mention\n%s", s)
+	}
+}
+
+func TestWizardShortlistUsesLikesLexicalRawQuery(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	stubNoHub(t)
+	path := writeTestIndex(t, []hf.Model{
+		{ID: "qwen/Qwen2.5-7B-Instruct", Likes: 9000, Downloads: 500000, Description: "general instruct chat", Tags: []string{"text-generation"}},
+		{ID: "mistralai/Mistral-7B-Instruct-v0.3", Likes: 8000, Downloads: 400000, Description: "instruct", Tags: []string{"text-generation"}},
+		{ID: "empero-ai/Qwythos", Likes: 120, Downloads: 8000, Description: "hacking empero cyber pentest", Tags: []string{"text-generation", "hacking"}},
+		{ID: "lab/hacking-empero-agent", Likes: 40, Downloads: 900, Description: "hacking empero virus analysis", Tags: []string{"text-generation"}},
+		{ID: "acme/unrelated-vision", Likes: 50, Downloads: 1000, Description: "image classification", Tags: []string{"image-classification"}},
+	})
+	withIndexPaths(t, path, "")
+
+	var buf bytes.Buffer
+	ids, err := wizardShortlist(&buf, "hacking empero")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "likes") {
+		t.Fatalf("expected likes rank source in output:\n%s", out)
+	}
+	if strings.Contains(out, "score=") {
+		t.Fatalf("wizard shortlist must not print semantic/recommend score:\n%s", out)
+	}
+	if !strings.Contains(out, "♥") || !strings.Contains(out, "↓") {
+		t.Fatalf("expected likes/downloads markers:\n%s", out)
+	}
+	joined := strings.Join(ids, ",")
+	if !strings.Contains(joined, "empero-ai/Qwythos") && !strings.Contains(joined, "lab/hacking-empero-agent") {
+		t.Fatalf("raw query should surface cyber models, got %v\n%s", ids, out)
+	}
+	// Popular instruct models must not dominate a "hacking empero" shortlist.
+	for _, bad := range []string{"qwen/Qwen2.5-7B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3"} {
+		for _, id := range ids {
+			if id == bad {
+				t.Fatalf("instruct default leaked into shortlist: %v\n%s", ids, out)
+			}
+		}
+	}
+	// Likes order among lexical hits: empero (120) before lab (40).
+	ei, li := -1, -1
+	for i, id := range ids {
+		if id == "empero-ai/Qwythos" {
+			ei = i
+		}
+		if id == "lab/hacking-empero-agent" {
+			li = i
+		}
+	}
+	if ei < 0 || li < 0 || ei > li {
+		t.Fatalf("expected likes order empero before lab: %v", ids)
+	}
+}
+
+func TestWizardShortlistDoesNotRewriteToInstruct(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	stubNoHub(t)
+	// Only models that match "instruct" would win if ParseIntent rewrote the query.
+	path := writeTestIndex(t, []hf.Model{
+		{ID: "big/instruct-chat", Likes: 9999, Downloads: 1_000_000, Description: "general purpose instruct", Tags: []string{"text-generation"}},
+		{ID: "niche/hacking-virus-scanner", Likes: 11, Downloads: 200, Description: "hacking virus malware reverse", Tags: []string{"text-generation"}},
+	})
+	withIndexPaths(t, path, "")
+
+	var buf bytes.Buffer
+	ids, err := wizardShortlist(&buf, "hacking virus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) == 0 || ids[0] != "niche/hacking-virus-scanner" {
+		t.Fatalf("want hacking-virus first from raw query, got %v\n%s", ids, buf.String())
+	}
+	if strings.Contains(strings.Join(ids, ","), "big/instruct-chat") {
+		t.Fatalf("instruct rewrite must not pull unrelated instruct model: %v", ids)
 	}
 }

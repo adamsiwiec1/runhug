@@ -53,22 +53,33 @@ func cmdRecommend(args []string) error {
 
 	ramGB := recommend.RAMGB()
 	intent := recommend.ParseIntent(query, ramGB)
-	searchQ := intent.Query
-	if searchQ == "" {
-		searchQ = query
-	}
 
+	// Search the raw user query (not intent.Query, which defaults to "instruct"
+	// for unmatched niches like "hacking"). Lexical likes sort matches
+	// `search -q … --sort likes --no-semantic`.
 	models, meta, err := searchModels(ctx, searchRequest{
-		Query:  searchQ,
-		Task:   "any",
-		Sort:   "relevance",
-		Limit:  max(n*3, 24),
-		Online: *online || *hub,
+		Query:           query,
+		Task:            "any",
+		Sort:            "likes",
+		Limit:           max(n*3, 24),
+		DisableSemantic: true,
+		Online:          *online || *hub,
 	})
 	if err != nil {
 		return err
 	}
-	scored := recommend.Score(models, intent)
+	var scored []recommend.Scored
+	if *noLLM {
+		// Keep likes order for --no-llm; do not bury niche publishers via Score.
+		for _, m := range models {
+			if len(scored) >= n {
+				break
+			}
+			scored = append(scored, recommend.Scored{Model: m, Score: 0, Why: []string{"likes"}})
+		}
+	} else {
+		scored = recommend.Score(models, intent)
+	}
 	if len(scored) == 0 {
 		return fmt.Errorf("no candidates in local index for %q — try a broader query, run update, or pass --online", query)
 	}
@@ -124,12 +135,12 @@ func cmdRecommend(args []string) error {
 
 	if *asJSON {
 		out := map[string]any{
-			"query":      query,
-			"intent":     intent,
+			"query":       query,
+			"intent":      intent,
 			"rank_source": meta.RankSource,
-			"candidates": scored,
-			"gpu":        gpuAdvices,
-			"no_llm":     *noLLM,
+			"candidates":  scored,
+			"gpu":         gpuAdvices,
+			"no_llm":      *noLLM,
 		}
 		if advice != "" {
 			out["advice"] = advice
@@ -149,10 +160,17 @@ func cmdRecommend(args []string) error {
 	fmt.Fprintln(os.Stdout)
 	fmt.Fprintln(os.Stdout, bold("Shortlist"))
 	for i, s := range scored {
+		detail := fmt.Sprintf("score=%.3f  %s", s.Score, strings.Join(s.Why, " · "))
+		if *noLLM {
+			detail = fmt.Sprintf("♥ %s  ↓ %s", formatCount(int64(s.Model.Likes)), formatCount(s.Model.Downloads))
+			if why := strings.Join(s.Why, " · "); why != "" {
+				detail = detail + "  " + why
+			}
+		}
 		fmt.Fprintf(os.Stdout, "  %s  %s  %s\n",
 			cyan(fmt.Sprintf("%d)", i+1)),
 			bold(s.Model.RepoID()),
-			dim(fmt.Sprintf("score=%.3f  %s", s.Score, strings.Join(s.Why, " · "))),
+			dim(detail),
 		)
 		if i < len(gpuHints) && gpuHints[i] != "" {
 			printKV(os.Stdout, "gpu", gpuHints[i])
@@ -264,4 +282,3 @@ func loadGPUCatalog(ctx context.Context) []runpod.GPU {
 	}
 	return gpus
 }
-

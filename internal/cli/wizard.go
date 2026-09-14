@@ -381,52 +381,42 @@ func wizardShortlist(w io.Writer, query string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	ramGB := recommend.RAMGB()
-	intent := recommend.ParseIntent(query, ramGB)
-	searchQ := intent.Query
-	if searchQ == "" {
-		searchQ = query
-	}
+	// Lexical search on the raw user query, sorted by likes — same behavior as
+	// `search -q … --sort likes --no-semantic`. Do not rewrite via ParseIntent
+	// (defaults Query to "instruct") or re-rank with recommend.Score (known-
+	// publisher bias), both of which bury niche cyber / domain models.
 	models, meta, err := searchModels(ctx, searchRequest{
-		Query:  searchQ,
-		Task:   "any",
-		Sort:   "relevance",
-		Limit:  24,
-		Online: false,
+		Query:           query,
+		Task:            "any",
+		Sort:            "likes",
+		Limit:           24,
+		DisableSemantic: true,
+		Online:          false,
 	})
 	if err != nil {
 		return nil, err
 	}
-	scored := recommend.Score(models, intent)
-	if len(scored) == 0 {
-		// Fall back to raw search order.
-		if len(models) == 0 {
-			return nil, fmt.Errorf("no candidates for %q — try broader terms or run update", query)
-		}
-		for _, m := range models {
-			if len(scored) >= 8 {
-				break
-			}
-			scored = append(scored, recommend.Scored{Model: m, Score: 0, Why: []string{"search"}})
-		}
+	if len(models) == 0 {
+		return nil, fmt.Errorf("no candidates for %q — try broader terms or run update", query)
 	}
-	if len(scored) > 8 {
-		scored = scored[:8]
+	if len(models) > 8 {
+		models = models[:8]
 	}
 
 	fmt.Fprintln(w, bold("Shortlist")+"  "+dim(meta.RankSource))
-	ids := make([]string, 0, len(scored))
-	for i, s := range scored {
-		id := s.Model.RepoID()
+	ids := make([]string, 0, len(models))
+	for i, m := range models {
+		id := m.RepoID()
 		ids = append(ids, id)
-		why := strings.Join(s.Why, " · ")
-		if why == "" {
-			why = hfTaskHint(s.Model)
+		hint := hfTaskHint(m)
+		stats := fmt.Sprintf("♥ %s  ↓ %s", formatCount(int64(m.Likes)), formatCount(m.Downloads))
+		if hint != "" {
+			stats = stats + "  " + hint
 		}
 		fmt.Fprintf(w, "  %s  %s  %s\n",
 			cyan(fmt.Sprintf("%d)", i+1)),
 			bold(id),
-			dim(fmt.Sprintf("score=%.3f  %s", s.Score, why)),
+			dim(stats),
 		)
 	}
 	fmt.Fprintln(w)
