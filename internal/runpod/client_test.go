@@ -121,7 +121,7 @@ func TestCreateEndpointRequestJSONShapeQueue(t *testing.T) {
 }
 
 func TestOpenAIURLFor(t *testing.T) {
-	if got := OpenAIURLFor(EndpointTypeLoadBalancer, "abc123"); got != "https://abc123.api.runpod.ai/openai/v1" {
+	if got := OpenAIURLFor(EndpointTypeLoadBalancer, "abc123"); got != "https://abc123.api.runpod.ai/v1" {
 		t.Fatalf("lb: %s", got)
 	}
 	if got := OpenAIURLFor(EndpointTypeQueue, "abc123"); got != "https://api.runpod.ai/v2/abc123/openai/v1" {

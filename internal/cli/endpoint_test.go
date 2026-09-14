@@ -146,7 +146,7 @@ func TestNormalizeOpenAIBase(t *testing.T) {
 	if NormalizeOpenAIBase("http://x/v1/") != "http://x/v1" {
 		t.Fatal(NormalizeOpenAIBase("http://x/v1/"))
 	}
-	lb := "https://abc.api.runpod.ai/openai/v1"
+	lb := "https://abc.api.runpod.ai/v1"
 	if NormalizeOpenAIBase(lb) != lb {
 		t.Fatal(NormalizeOpenAIBase(lb))
 	}

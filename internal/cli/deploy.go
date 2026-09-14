@@ -30,7 +30,7 @@ func cmdDeploy(args []string) error {
 	maxWorkers := fs.Int("max-workers", 3, "maximum workers")
 	idle := fs.Int("idle-timeout", 5, "seconds before an idle worker scales down")
 	scalerValue := fs.Int("scaler-value", 1, "REQUEST_COUNT concurrency target (or QUEUE_DELAY seconds when --endpoint-type=QUEUE)")
-	endpointType := fs.String("endpoint-type", runpod.EndpointTypeLoadBalancer, "LOAD_BALANCER (default, OpenAI HTTP) or QUEUE")
+	endpointType := fs.String("endpoint-type", runpod.EndpointTypeQueue, "QUEUE (default, matches worker-v1-vllm) or LOAD_BALANCER")
 	flashboot := fs.String("flashboot", "FLASHBOOT", "OFF, FLASHBOOT, or PRIORITY_FLASHBOOT")
 	image := fs.String("image", runpod.DefaultImage, "worker image")
 	disk := fs.Int("disk", 0, "container disk GB (0 = sized from the repo)")
@@ -129,7 +129,7 @@ func cmdDeploy(args []string) error {
 
 	epType := strings.ToUpper(strings.TrimSpace(*endpointType))
 	if epType == "" {
-		epType = runpod.EndpointTypeLoadBalancer
+		epType = runpod.EndpointTypeQueue
 	}
 	var scaling *runpod.Scaling
 	switch epType {

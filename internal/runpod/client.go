@@ -205,13 +205,13 @@ func OpenAIURL(endpointID string) string {
 }
 
 // OpenAIURLFor returns the OpenAI-compatible base URL for an endpoint type.
-// LOAD_BALANCER: https://{id}.api.runpod.ai/openai/v1
-// QUEUE (default): https://api.runpod.ai/v2/{id}/openai/v1
+// LOAD_BALANCER (FastAPI LB image): https://{id}.api.runpod.ai/v1
+// QUEUE (worker-v1-vllm default): https://api.runpod.ai/v2/{id}/openai/v1
 func OpenAIURLFor(endpointType, endpointID string) string {
 	id := strings.TrimSpace(endpointID)
 	switch strings.ToUpper(strings.TrimSpace(endpointType)) {
 	case EndpointTypeLoadBalancer:
-		return "https://" + id + ".api.runpod.ai/openai/v1"
+		return "https://" + id + ".api.runpod.ai/v1"
 	default:
 		return strings.TrimRight(OpenAIBase, "/") + "/" + id + "/openai/v1"
 	}
