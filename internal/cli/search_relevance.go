@@ -23,6 +23,9 @@ type searchRequest struct {
 	Sort            string
 	Limit           int
 	DisableSemantic bool
+	// Online forces a live Hub API search. Default search never hits the Hub
+	// when a local or bundled SQLite index exists.
+	Online bool
 }
 
 type searchMeta struct {
@@ -31,32 +34,57 @@ type searchMeta struct {
 	Notes      string
 }
 
+type hubSearchFn func(ctx context.Context, client *hf.Client, opts hf.SearchOpts, sortKey string, displayLimit int, wantSemantic bool) ([]hf.Model, string, error)
+
+// Test hooks. Production uses the real path helpers and Hub search.
+var (
+	userIndexPathFn                = indexFilePath
+	bundledIndexPathFn             = bundledIndexPath
+	liveHubSearchFn    hubSearchFn = searchRanked
+)
+
+func errNoSearchIndex() error {
+	return fmt.Errorf("no local search index found.\nRun `runhug-cli update` or `runhug-cli init` to build one from Hugging Face.\nOr pass --online / --hub for a live Hub search (rate-limited; set HF_TOKEN).")
+}
+
+func resolveSearchIndex() (path, source string) {
+	if p := userIndexPathFn(); p != "" && index.Exists(p) {
+		return p, "local index"
+	}
+	if p := bundledIndexPathFn(); p != "" && index.Exists(p) {
+		return p, "bundled index"
+	}
+	return "", ""
+}
+
 func searchModels(ctx context.Context, req searchRequest) ([]hf.Model, searchMeta, error) {
 	sortKey, err := hf.NormalizeSort(req.Sort)
 	if err != nil {
 		return nil, searchMeta{}, err
 	}
-
-	// Try user-local index first, then bundled index, then HF API
-	indexPath := indexFilePath()
-	if index.Exists(indexPath) {
-		return searchLocalIndex(ctx, req, sortKey)
+	if req.Limit <= 0 {
+		req.Limit = 10
 	}
 
-	// Try bundled index
-	bundledPath := bundledIndexPath()
-	if index.Exists(bundledPath) {
-		return searchBundledIndex(ctx, req, sortKey, bundledPath)
+	if req.Online {
+		return searchHubLive(ctx, req, sortKey)
 	}
 
-	// Fall back to HF API (alias expansion + card descriptions + optional semantic rank).
+	path, source := resolveSearchIndex()
+	if path == "" {
+		return nil, searchMeta{}, errNoSearchIndex()
+	}
+	return searchIndexAtPath(ctx, req, sortKey, path, source)
+}
+
+func searchHubLive(ctx context.Context, req searchRequest, sortKey string) ([]hf.Model, searchMeta, error) {
 	client := hf.New(config.Load().HFToken)
 	meta := searchMeta{
 		RankSource: "hub",
 		Queries:    hf.HubSearchQueries(req.Query),
 	}
 	task := hf.ResolveTask(req.Task, req.Query)
-	models, note, err := searchRanked(ctx, client, hf.SearchOpts{
+	models, note, err := liveHubSearchFn(ctx, client, hf.SearchOpts{
 		Query:   req.Query,
 		Author:  req.Author,
 		Task:    task,
@@ -80,14 +108,6 @@ func searchModels(ctx context.Context, req searchRequest) ([]hf.Model, searchMet
 		meta.RankSource = "hub + descriptions"
 	}
 	return models, meta, nil
-}
-
-func searchLocalIndex(ctx context.Context, req searchRequest, sortKey string) ([]hf.Model, searchMeta, error) {
-	return searchIndexAtPath(ctx, req, sortKey, indexFilePath(), "local index")
-}
-
-func searchBundledIndex(ctx context.Context, req searchRequest, sortKey string, path string) ([]hf.Model, searchMeta, error) {
-	return searchIndexAtPath(ctx, req, sortKey, path, "bundled index")
 }
 
 func searchIndexAtPath(ctx context.Context, req searchRequest, sortKey string, path string, source string) ([]hf.Model, searchMeta, error) {
@@ -114,6 +134,7 @@ func searchIndexAtPath(ctx context.Context, req searchRequest, sortKey string, p
 		License:     req.License,
 		PipelineTag: pipeline,
 		Engine:      req.Engine,
+		Filter:      req.Filter,
 		Sort:        sortKey,
 		Limit:       100,
 	}
@@ -143,7 +164,6 @@ func searchIndexAtPath(ctx context.Context, req searchRequest, sortKey string, p
 		meta.RankSource = source + " + " + sortKey
 	}
 
-	// Limit results
 	if len(models) > req.Limit {
 		models = models[:req.Limit]
 	}

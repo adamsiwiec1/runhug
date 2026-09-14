@@ -171,6 +171,10 @@ func (idx *Index) Search(ctx context.Context, query string, filters SearchFilter
 			sqlQuery += " AND (m.library_name = 'transformers' OR m.library_name = 'safetensors')"
 		}
 	}
+	if filters.Filter != "" {
+		sqlQuery += " AND LOWER(m.tags) LIKE ?"
+		args = append(args, "%"+strings.ToLower(filters.Filter)+"%")
+	}
 
 	// Apply sort order
 	switch strings.ToLower(filters.Sort) {
@@ -235,6 +239,7 @@ type SearchFilters struct {
 	License     string
 	PipelineTag string
 	Engine      string
+	Filter      string
 	Sort        string
 	Limit       int
 }

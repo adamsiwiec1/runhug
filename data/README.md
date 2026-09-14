@@ -21,9 +21,10 @@ Once a user-local index exists, it takes precedence over the bundled index.
 
 ## Search Hierarchy
 
-1. **User-local index** (`~/.config/runhug-cli/models.db`) - highest priority
-2. **Bundled index** (`data/models.db`) - fallback if no user index
-3. **Hugging Face API** - fallback if no indexes exist
+1. **User-local index** (`~/.config/runhug-cli/models.db`) — highest priority
+2. **Bundled index** (`data/models.db`) — fallback if no user index
+3. **No index** — search tells you to run `runhug-cli update` (or `init`). It does **not** call the Hub.
+4. **`--online` / `--hub`** — optional live Hub search (rate-limited; set `HF_TOKEN`)
 
 ## Contents
 
