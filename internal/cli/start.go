@@ -27,6 +27,7 @@ func cmdStart(args []string) error {
 	serveModel := fs.String("model", "", "served model name hint for the agent")
 	modelKey := fs.String("endpoint", "", "registry model / endpoint id (alias for positional model)")
 	noLaunch := fs.Bool("no-launch", false, "print env/command only; do not exec the agent")
+	yes := fs.Bool("yes", false, "non-interactive: auto-pick when exactly one registry/remote model")
 	bridgePort := fs.Int("bridge-port", 0, "local Anthropic→OpenAI bridge port (0 = ephemeral)")
 	if err := parseFlags(fs, args); err != nil {
 		return err
@@ -39,18 +40,24 @@ func cmdStart(args []string) error {
 	if fs.NArg() > 1 {
 		registryKey = fs.Arg(1)
 	}
+	skipPrompt := *yes || *noLaunch || !canPrompt()
 
 	switch agent {
 	case "claude":
-		return startClaude(registryKey, *baseURL, *apiKeyEnv, *serveModel, *bridgePort, *noLaunch)
+		return startClaude(registryKey, *baseURL, *apiKeyEnv, *serveModel, *bridgePort, *noLaunch, skipPrompt)
 	case "codex":
-		return startCodexStub(registryKey, *baseURL, *apiKeyEnv, *serveModel, *noLaunch)
+		return startCodexStub(registryKey, *baseURL, *apiKeyEnv, *serveModel, *noLaunch, skipPrompt)
 	default:
 		return fmt.Errorf("unknown agent %q (supported: claude; stub: codex)", agent)
 	}
 }
 
-func startClaude(registryKey, baseURL, apiKeyEnv, serveModel string, bridgePort int, noLaunch bool) error {
+func startClaude(registryKey, baseURL, apiKeyEnv, serveModel string, bridgePort int, noLaunch, skipPrompt bool) error {
+	var err error
+	registryKey, serveModel, err = pickStartModel(registryKey, baseURL, serveModel, apiKeyEnv, skipPrompt)
+	if err != nil {
+		return err
+	}
 	target, err := ResolveEndpoint(registryKey, baseURL, apiKeyEnv, serveModel)
 	if err != nil {
 		return err
@@ -288,7 +295,12 @@ func formatClaudeCommand(args []string) string {
 	return strings.Join(parts, " ")
 }
 
-func startCodexStub(registryKey, baseURL, apiKeyEnv, serveModel string, noLaunch bool) error {
+func startCodexStub(registryKey, baseURL, apiKeyEnv, serveModel string, noLaunch, skipPrompt bool) error {
+	var err error
+	registryKey, serveModel, err = pickStartModel(registryKey, baseURL, serveModel, apiKeyEnv, skipPrompt)
+	if err != nil {
+		return err
+	}
 	target, err := ResolveEndpoint(registryKey, baseURL, apiKeyEnv, serveModel)
 	if err != nil {
 		return err

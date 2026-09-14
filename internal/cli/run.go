@@ -22,6 +22,7 @@ func cmdRun(args []string) error {
 	serveModel := fs.String("model", "", "served model name for chat completions")
 	oneshot := fs.String("q", "", "one-shot prompt then exit")
 	stream := fs.Bool("stream", true, "use chat completions streaming when supported")
+	yes := fs.Bool("yes", false, "non-interactive: auto-pick when exactly one registry/remote model")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
@@ -29,8 +30,13 @@ func cmdRun(args []string) error {
 	if fs.NArg() > 0 {
 		modelKey = fs.Arg(0)
 	}
+	skipPrompt := *yes || !canPrompt()
+	pickedKey, pickedModel, err := pickStartModel(modelKey, *baseURL, *serveModel, *apiKeyEnv, skipPrompt)
+	if err != nil {
+		return err
+	}
 
-	target, err := ResolveEndpoint(modelKey, *baseURL, *apiKeyEnv, *serveModel)
+	target, err := ResolveEndpoint(pickedKey, *baseURL, *apiKeyEnv, pickedModel)
 	if err != nil {
 		return err
 	}
