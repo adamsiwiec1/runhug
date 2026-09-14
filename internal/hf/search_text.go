@@ -20,10 +20,16 @@ const (
 // These are additional list queries (capped with other extras at 4), not
 // silent rewrites of the user query.
 var QueryAliases = map[string][]string{
-	"hacking":  {"pentest", "offsec", "cybersecurity", "bug hunter"},
-	"hack":     {"pentest", "offsec", "cybersecurity", "bug hunter"},
-	"offsec":   {"pentest", "red team", "cyber"},
-	"cybersec": {"cybersecurity"},
+	"hacking":     {"pentest", "offsec", "cybersecurity", "bug hunter"},
+	"hack":        {"pentest", "offsec", "cybersecurity", "bug hunter"},
+	"offsec":      {"pentest", "red team", "cyber"},
+	"cybersec":    {"cybersecurity"},
+	"penetration": {"pentest", "pentester", "offsec"},
+	"pentest":     {"pentester", "offsec", "bug hunter"},
+	"cartoon":     {"anime", "animation", "toon"},
+	"animated":    {"animation", "anime", "cartoon"},
+	"animation":   {"anime", "cartoon", "animated"},
+	"uncensored":  {"unfiltered", "abliterated"},
 }
 
 // HubCall is one GET /api/models request used for recall.
@@ -63,8 +69,9 @@ func HubSearchQueries(query string) []string {
 }
 
 // HubQueryPlan is the primary Hub list call plus at most 4 extras:
-// alias/token search=, then task=any (if the default task is text-generation),
-// then a single-token tag filter.
+// alias/token search=, then task=any when the primary task is specific
+// (so image/audio intents still recall mistagged cards), then a single-token
+// tag filter.
 func HubQueryPlan(query, task string) []HubCall {
 	searches := HubSearchQueries(query)
 	if len(searches) == 0 {
@@ -75,7 +82,7 @@ func HubQueryPlan(query, task string) []HubCall {
 	for _, s := range searches[1:] {
 		extras = append(extras, HubCall{Search: s, Task: task})
 	}
-	if task == "" || task == "text-generation" {
+	if task != "" && task != "any" {
 		extras = append(extras, HubCall{Search: searches[0], Task: "any"})
 	}
 	if tok := singleQueryToken(query); tok != "" {

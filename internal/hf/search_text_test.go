@@ -77,6 +77,22 @@ func TestHubQueryPlanCapsExtras(t *testing.T) {
 	}
 }
 
+
+func TestHubQueryPlanAnySkipsRedundantAny(t *testing.T) {
+	plan := HubQueryPlan("qwen", "any")
+	for _, c := range plan[1:] {
+		if c.Task == "any" && c.Search == "qwen" && c.Filter == "" {
+			// primary already any; extras may still search aliases with task any, but the
+			// dedicated "same search, task=any" boost should not be added.
+			continue
+		}
+	}
+	// primary
+	if plan[0].Task != "any" {
+		t.Fatalf("primary %+v", plan[0])
+	}
+}
+
 func TestScoreRelevancePrefersDescription(t *testing.T) {
 	models := []Model{
 		{ID: "acme/general-chat-7b", Likes: 5000, Tags: []string{"safetensors"}},

@@ -19,15 +19,16 @@ func cmdSearch(args []string) error {
 	fs.StringVar(&queryFlag, "query", "", "search query (same as positional; wins if both set)")
 	fs.StringVar(&queryFlag, "q", "", "search query (same as --query)")
 	author := fs.String("author", "", "filter by Hugging Face org or user")
-	task := fs.String("task", "text-generation", "pipeline_tag (text-generation, any, …)")
+	task := fs.String("task", "auto", "pipeline_tag: auto (detect image/audio/… else any), any, text-generation, text-to-image, …")
 	library := fs.String("library", "", "library filter (transformers, …)")
 	filter := fs.String("filter", "", "extra Hub tag filter (safetensors, gguf, …)")
 	license := fs.String("license", "", "license filter (apache-2.0, mit, gemma, other, …)")
 	engine := fs.String("engine", "", "engine filter (vllm, gguf, …)")
-	sort := fs.String("sort", "relevance", "relevance (default; semantic cosine if an embedder is available, else id/tags/description), likes, or downloads (re-rank the same 100-hit pool)")
+	sort := fs.String("sort", "relevance", "relevance (default; embedding rerank when available, else id/tags/description), likes, or downloads (re-rank the same 100-hit pool)")
 	limit := fs.Int("limit", 15, "rows to show (1-100)")
 	semanticOn := fs.Bool("semantic", true, "rerank with embeddings when nomic-embed-text (Ollama) or HF Inference is available")
-	noSemantic := fs.Bool("no-semantic", false, "disable embedding rerank (lexical Hub search only)")
+	noSemantic := fs.Bool("no-semantic", false, "disable embedding rerank (lexical Hub/index search only)")
+	keyword := fs.Bool("keyword", false, "alias for --no-semantic (lexical-only)")
 	wordWrap, ww := addWordWrapFlags(fs)
 	asJSON := fs.Bool("json", false, "print JSON")
 	if err := parseFlags(fs, args); err != nil {
@@ -35,6 +36,8 @@ func cmdSearch(args []string) error {
 	}
 	*limit = clampLimit(*limit)
 	query := resolveSearchQuery(queryFlag, strings.Join(fs.Args(), " "))
+	resolvedTask := hf.ResolveTask(*task, query)
+	wantSemantic := *semanticOn && !*noSemantic && !*keyword
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -42,12 +45,12 @@ func cmdSearch(args []string) error {
 	models, note, err := searchRanked(ctx, client, hf.SearchOpts{
 		Query:   query,
 		Author:  *author,
-		Task:    *task,
+		Task:    resolvedTask,
 		Library: *library,
 		Filter:  *filter,
 		License: *license,
 		Engine:  *engine,
-	}, *sort, *limit, *semanticOn && !*noSemantic)
+	}, *sort, *limit, wantSemantic)
 	if err != nil {
 		return err
 	}

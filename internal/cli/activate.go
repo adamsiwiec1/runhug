@@ -161,10 +161,10 @@ func printInstalled(m store.Model) {
 	}
 	fmt.Fprintln(w)
 	commands(w, "Next:",
-		"runhug-cli search qwen --sort likes",
+		`runhug-cli search -q "top penetration testing models"`,
 		"runhug-cli inspect "+m.HFRepo,
 		"runhug-cli connect",
-		"runhug-cli deploy Qwen/Qwen2.5-7B-Instruct",
+		"runhug-cli deploy "+m.HFRepo,
 		"runhug-cli proxy",
 	)
 }

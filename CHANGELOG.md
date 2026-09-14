@@ -7,6 +7,10 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+- Search is NLP/embeddings-only: removed local chat re-rank (`localllm` / `recommend.Rerank` chat path).
+- `init` sets up nomic-embed-text / `connect hf` + optional index (no Qwen chat starter).
+- Default Hub task is `auto`/`any` with image/audio intent detection; `--keyword` aliases `--no-semantic`.
+
 ### Changed
 - Rebranded CLI to **runhug-cli** (module `github.com/adamsiwiec1/runhug-cli`, binary `runhug-cli`)
 - Config directory is now XDG `~/.config/runhug-cli` (honors `XDG_CONFIG_HOME`); migrates from prior `runpod-vllm-proxy` locations on load

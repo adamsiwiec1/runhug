@@ -1,6 +1,7 @@
 package runtime
 
-// DefaultModel is the local model init recommends when the user does not override.
+// DefaultModel is a sample local serve mapping (optional init --model / tests).
+// Search init no longer installs this; prefer nomic-embed-text for embeddings.
 type DefaultModel struct {
 	HF     string
 	GGUF   string

@@ -15,9 +15,9 @@ hero:
 
 features:
   - title: Search
-    details: `search` (`-q` / `--query`) hits the Hugging Face API and scores repo id, tags, and model card descriptions. Semantic rerank uses local nomic-embed-text or HF Inference when available. Filter by `--engine` / `--license`; likes and downloads re-rank an expanded relevance pool.
-  - title: Pull locally
-    details: `init` installs a runtime and the default model, or `--model` / `--search` to pick your own.
+    details: NLP search over Hub/index (`-q` / `--query`) — repo id, tags, card descriptions, plus embedding rerank (nomic-embed-text or HF Inference). No local chat model required. Default task is auto/any (not forced text-generation).
+  - title: Search setup
+    details: `init` prepares the embedder + optional index (`nomic-embed-text` / `connect hf` / `update`). Optional `--model` installs a local serve model.
   - title: Deploy
     details: `connect` prints the API keys URL and saves a key. `deploy` creates one Serverless vLLM endpoint. `list` and `proxy` finish the loop.
 ---
