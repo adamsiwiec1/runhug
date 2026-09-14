@@ -32,7 +32,7 @@ func runREPL() error {
 
 	fmt.Fprintf(os.Stdout, "%s %s — Interactive Mode\n\n", bold(version.Name), version.Version)
 	fmt.Fprintln(os.Stdout, "Commands:")
-	fmt.Fprintln(os.Stdout, "  "+cyan("search -q \"...\"")+"        Search Hugging Face (id, tags, card description)")
+	fmt.Fprintln(os.Stdout, "  "+cyan("search -q \"...\"")+"        Local index search (id, tags, description; --online for Hub)")
 	fmt.Fprintln(os.Stdout, "  "+cyan("copy N")+"                Copy model id from last search (N = row number)")
 	fmt.Fprintln(os.Stdout, "  "+cyan("inspect <model>")+"       Show model details")
 	fmt.Fprintln(os.Stdout, "  "+cyan("deploy <model>")+"        Deploy model to Runpod")
@@ -121,7 +121,7 @@ func (s *replSession) handleCommand(line string) error {
 
 func (s *replSession) cmdHelp() error {
 	fmt.Fprintln(os.Stdout, "Available commands:")
-	fmt.Fprintln(os.Stdout, "  "+cyan("search -q \"query\"")+"   NLP search (id/tags/description + embedding rerank); no local chat model (--engine, --license, --sort, --keyword/--no-semantic)")
+	fmt.Fprintln(os.Stdout, "  "+cyan("search -q \"query\"")+"   Local SQLite index (optional embedding rerank); --online/--hub for live Hub (--engine, --license, --sort, --keyword/--no-semantic)")
 	fmt.Fprintln(os.Stdout, "  "+cyan("copy N")+"             Copy model id from row N of last search")
 	fmt.Fprintln(os.Stdout, "  "+cyan("inspect <model>")+"    Show model details and VRAM estimates")
 	fmt.Fprintln(os.Stdout, "  "+cyan("deploy <model>")+"     Deploy model to Runpod serverless")
@@ -135,48 +135,21 @@ func (s *replSession) cmdHelp() error {
 
 func (s *replSession) cmdSearchREPL(args []string) error {
 	fs := newFlagSet("search")
-	var query string
-	fs.StringVar(&query, "query", "", "search query")
-	fs.StringVar(&query, "q", "", "search query (shorthand)")
-	author := fs.String("author", "", "filter by Hugging Face org or user")
-	task := fs.String("task", "auto", "pipeline_tag: auto (detect image/audio/… else any), any, text-generation, …")
-	library := fs.String("library", "", "library filter (transformers, …)")
-	filter := fs.String("filter", "", "extra Hub tag filter (safetensors, …)")
-	license := fs.String("license", "", "license filter (apache-2.0, mit, …)")
-	engine := fs.String("engine", "", "engine filter (vllm, gguf)")
-	sort := fs.String("sort", "relevance", "relevance (default; semantic if available), likes, downloads")
-	limit := fs.Int("limit", 15, "max results (1-100)")
-	semanticOn := fs.Bool("semantic", true, "rerank with embeddings when an embedder is available")
-	noSemantic := fs.Bool("no-semantic", false, "disable embedding rerank")
-	keyword := fs.Bool("keyword", false, "alias for --no-semantic (lexical-only)")
-	wrap, wordWrap, ww := addWrapFlags(fs)
-
+	sf := registerSearchFlags(fs)
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
 
-	*limit = clampLimit(*limit)
-	query = resolveSearchQuery(query, strings.Join(fs.Args(), " "))
+	query := resolveSearchQuery(sf.queryFlag, strings.Join(fs.Args(), " "))
 	if query == "" {
 		return fmt.Errorf("usage: search -q <query>   (or: search <query>)")
 	}
-	resolvedTask := hf.ResolveTask(*task, query)
+	req := sf.request(query)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	models, meta, err := searchModels(ctx, searchRequest{
-		Query:           query,
-		Author:          *author,
-		Task:            resolvedTask,
-		Library:         *library,
-		Filter:          *filter,
-		License:         *license,
-		Engine:          *engine,
-		Sort:            *sort,
-		Limit:           *limit,
-		DisableSemantic: !*semanticOn || *noSemantic || *keyword,
-	})
+	models, meta, err := searchModels(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -187,12 +160,12 @@ func (s *replSession) cmdSearchREPL(args []string) error {
 	printHubResults(os.Stdout, hubView{
 		Query:      query,
 		Models:     models,
-		Sort:       *sort,
-		Limit:      *limit,
+		Sort:       req.Sort,
+		Limit:      req.Limit,
 		Command:    quotedSearchCmd(query),
 		RankSource: meta.RankSource,
 		Queries:    meta.Queries,
-		WrapWidth:  resolveWrapWidth(*wrap, *wordWrap, *ww),
+		WrapWidth:  resolveWrapWidth(*sf.wrap, *sf.wordWrap, *sf.ww),
 	})
 
 	return nil

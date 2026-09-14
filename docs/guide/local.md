@@ -9,8 +9,8 @@ runhug-cli local add --pick 1
 runhug-cli search -q gemma4 --sort likes
 ```
 
-`--pick 1` on `gemma4:e4b` queries the Hub for `gemma4` and prints likes,
-downloads, and `https://huggingface.co/<id>`.
+`--pick 1` on `gemma4:e4b` searches the **local index** for `gemma4` and prints likes,
+downloads, and `https://huggingface.co/<id>`. Pass `search --online` for a live Hub query.
 
 Bare `local add` scans `~/models`, `~/gguf`, `~/.ollama/models`, Hugging Face
 and LM Studio caches, `$RVP_CACHE`, and `$RVP_MODELS`.

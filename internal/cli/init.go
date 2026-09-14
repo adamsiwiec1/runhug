@@ -32,7 +32,7 @@ func cmdInit(args []string) error {
 	}
 
 	heading(os.Stdout, "Init — search NLP setup")
-	fmt.Fprintln(os.Stdout, dim("Search uses Hub/index lexical recall + optional embedding rerank."))
+	fmt.Fprintln(os.Stdout, dim("Search uses the local SQLite index; update refreshes it from the Hub."))
 	fmt.Fprintln(os.Stdout, dim("No local chat model is required. Deploy to Runpod stays separate."))
 	fmt.Fprintln(os.Stdout)
 

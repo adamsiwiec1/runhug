@@ -36,9 +36,12 @@ func printHubResults(w io.Writer, v hubView) {
 	if w == nil {
 		w = os.Stdout
 	}
-	title := "Hugging Face"
+	title := "Search"
+	if strings.Contains(strings.ToLower(v.RankSource), "hub") {
+		title = "Hugging Face"
+	}
 	if v.Query != "" {
-		title = fmt.Sprintf("Hugging Face  %s", v.Query)
+		title = fmt.Sprintf("%s  %s", title, v.Query)
 	}
 	heading(w, fmt.Sprintf("%s  (%d)", title, len(v.Models)))
 	if v.Sort != "" || v.Limit > 0 {
@@ -47,15 +50,24 @@ func printHubResults(w io.Writer, v hubView) {
 			fmt.Fprintf(w, "   %s %d", dim("--limit"), v.Limit)
 		}
 		fmt.Fprintln(w)
+	}
+	if v.RankSource != "" {
+		fmt.Fprintf(w, "%s  %s\n", dim("source"), v.RankSource)
+	}
+	if v.Sort != "" || v.Limit > 0 || v.RankSource != "" {
 		fmt.Fprintln(w)
 	}
 	if len(v.Models) == 0 {
-		fmt.Fprintln(w, yellow("No models on the Hub matched."))
+		if strings.Contains(strings.ToLower(v.RankSource), "hub") {
+			fmt.Fprintln(w, yellow("No models on the Hub matched."))
+		} else {
+			fmt.Fprintln(w, yellow("No models in the local index matched."))
+		}
 		fmt.Fprintln(w)
-		commands(w, "Try a broader query:",
+		commands(w, "Try a broader query, or refresh the index:",
+			`runhug-cli update`,
 			`runhug-cli search instruct --sort likes --limit 20`,
-			`runhug-cli search qwen --engine gguf --limit 20`,
-			`runhug-cli search instruct --license apache-2.0 --engine vllm`,
+			`runhug-cli search --online -q "qwen" --limit 20`,
 		)
 		return
 	}

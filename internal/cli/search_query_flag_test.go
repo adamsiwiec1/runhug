@@ -58,17 +58,10 @@ func TestSearchHelpMentionsQueryAndDescriptions(t *testing.T) {
 	var buf bytes.Buffer
 	fs := newFlagSet("search")
 	fs.SetOutput(&buf)
-	var queryFlag string
-	fs.StringVar(&queryFlag, "query", "", "search query (same as positional; wins if both set)")
-	fs.StringVar(&queryFlag, "q", "", "search query (same as --query)")
-	_ = fs.String("sort", "relevance", "relevance (default; id/tags/description, sort omitted on Hub), likes, or downloads (re-rank a 100-hit expanded pool)")
-	_ = fs.Bool("semantic", true, "rerank with embeddings when nomic-embed-text (Ollama) or HF Inference is available")
-	_ = fs.Bool("no-semantic", false, "disable embedding rerank (lexical Hub search only)")
-	_ = fs.Bool("keyword", false, "alias for --no-semantic (lexical-only)")
-	addWrapFlags(fs)
+	registerSearchFlags(fs)
 	fs.PrintDefaults()
 	s := buf.String()
-	for _, want := range []string{"-q", "-query", "description", "positional", "semantic", "nomic-embed-text", "no-semantic", "keyword", "wrap", "word-wrap", "-ww"} {
+	for _, want := range []string{"-q", "-query", "description", "positional", "semantic", "nomic-embed-text", "no-semantic", "keyword", "wrap", "word-wrap", "-ww", "-online", "-hub", "local", "HF_TOKEN", "rate-limited"} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("search -h missing %q\n%s", want, s)
 		}

@@ -47,6 +47,11 @@ runhug-cli init --model <ollama-tag-or-hub-id>
 
 ## Search
 
+`search` queries the **local SQLite index** (`~/.config/runhug-cli/models.db`,
+or the bundled `data/models.db`). It does **not** call the Hugging Face Hub
+API. Refresh the index from the Hub with `update` (or `init`). Live Hub
+search is opt-in:
+
 ```bash
 runhug-cli search -q "top penetration testing models" --limit 5
 runhug-cli search -q "animated cartoon generation models" --limit 5
@@ -55,49 +60,45 @@ runhug-cli search qwen --sort likes --limit 5
 runhug-cli search instruct --sort downloads --engine vllm
 runhug-cli search "instruct coder" --engine gguf --license apache-2.0
 runhug-cli search -q cybersec --keyword
+runhug-cli search --online -q "offsec hacking model" --sort likes   # live Hub; rate-limited
 runhug-cli inspect Qwen/Qwen2.5-7B-Instruct
 ```
+
+If no local or bundled index exists, search prints a message to run
+`runhug-cli update` or `runhug-cli init` instead of hitting the Hub.
+`--online` / `--hub` forces a live Hub request (rate-limited; set
+`HF_TOKEN` to raise limits and reach gated listings).
 
 `-q` / `--query` is the same as a positional query. If both are set,
 `--query` wins.
 
 Search matches **repo id, tags, pipeline tag, and the model card
-description** (Hub `full=true`, plus a bounded card `Get` when the list
-omits it — no weight downloads). Relevance is local token overlap;
-description and tag hits are boosted, then likes break ties.
-
-The Hub `search=` API mostly matches repo id / author, so a short query
-also fires a few extra list calls (max 4): documented aliases, distinctive
-tokens, and sometimes `task=any` or a tag `filter=`. Aliases:
+description** already stored in the index. Relevance is local token overlap;
+description and tag hits are boosted, then likes break ties. Alias terms
+expand the local query (not extra Hub calls):
 
 - `hacking` / `hack` → also `pentest`, `offsec`, `cybersecurity`, `bug hunter`
 - `offsec` → also `pentest`, `red team`, `cyber`
 - `cybersec` → also `cybersecurity`
 
-`--sort` is `relevance` (default; Hub `sort` omitted), `likes`, or
-`downloads`. Popularity sorts still build that expanded pool (up to 100
-after union), then re-rank locally — they do not ask the Hub to sort by
-likes. `--limit` is how many rows to show (default 15). `--engine`
-accepts `vllm`, `gguf`, or any other engine string; `--license` matches
-Hub tags (`apache-2.0`, `mit`, `gemma`, `other` for empty or uncommon
+`--sort` is `relevance` (default), `likes`, or `downloads`. Popularity
+sorts re-rank the **same local candidate pool** (up to 100 hits), then
+`--limit` rows are shown (default 15). They do not re-query the Hub.
+`--engine` accepts `vllm`, `gguf`, or any other engine string; `--license`
+matches tags (`apache-2.0`, `mit`, `gemma`, `other` for empty or uncommon
 licenses). The table may shorten MODEL (ellipsis); `--wrap 28` /
 `--word-wrap N` / `-ww N` wraps MODEL across lines at N runes (other
 columns stay on the first line). **ACTIONS** offers 🔗 (open Hub) and 📋
 (copy via `search --copy N` or REPL `copy N`). **Next:** always uses the
 full repo id.
 
-The Hub has **no public semantic model-search API**. Website search and
-`GET /api/models?search=` are lexical (repo id / author; cards are a
-separate full-text index). After that recall, `--sort relevance` can
-re-rank the pool with embeddings: local Ollama `nomic-embed-text` if
-it is already pulled, otherwise Hugging Face Inference
-`sentence-transformers/all-MiniLM-L6-v2` when `HF_TOKEN` is set.
+`--sort relevance` can re-rank the local pool with embeddings: local Ollama
+`nomic-embed-text` if it is already pulled (cached vectors stay local).
 `--semantic` is on by default when an embedder is available; `--keyword` /
 `--no-semantic` keep lexical scoring only. No local chat model is required
-for search — chat completions are not used for ranking. Default Hub
+for search — chat completions are not used for ranking. Default
 `pipeline_tag` is **auto** (image/cartoon/diffusion/audio intents map to a
-task; otherwise `any`), so queries are not forced onto `text-generation`
-instruct LLMs.
+task; otherwise `any`).
 
 ### Local index (not a Hub-wide vector DB)
 
@@ -106,10 +107,11 @@ What ships today:
 - A **SQLite** local model index (`data/models.db`, or a user copy under
   `~/.config/runhug-cli/models.db`)
 - Optional **embedding rerank** (`internal/semantic`) via Ollama
-  `nomic-embed-text` or Hugging Face Inference
+  `nomic-embed-text`
 
 This is **not** a full Hub-wide vector database. Semantic search means local
-index + optional embeddings on the candidate pool. Refresh the index with:
+index + optional embeddings on the candidate pool. The Hub is contacted only
+by `update` (refresh) or `search --online` / `--hub`. Refresh the index with:
 
 ```bash
 runhug-cli update
@@ -169,10 +171,10 @@ curl http://127.0.0.1:8080/v1/models
 
 ```bash
 runhug-cli local add                 # list Ollama / GGUF on disk
-runhug-cli local add --pick 1        # search the Hub for that name
+runhug-cli local add --pick 1        # search the local index for that name
 ```
 
-`local add --pick 1` on `gemma4:e4b` searches Hugging Face for `gemma4`.
+`local add --pick 1` on `gemma4:e4b` searches the local index for `gemma4`.
 Bare `local add` scans `~/models`, `~/gguf`, `~/.ollama/models`, Hugging Face /
 LM Studio caches, `$RVP_CACHE`, and `$RVP_MODELS`.
 
@@ -192,7 +194,7 @@ LM Studio caches, `$RVP_CACHE`, and `$RVP_MODELS`.
 | Command | What it does |
 | --- | --- |
 | `init` | Runtime + default local model (or `--model` / `--search`) |
-| `search` | Hugging Face search |
+| `search` | Local SQLite index search (`--online` / `--hub` for live Hub) |
 | `inspect` | Hub card + params + VRAM |
 | `connect` / `disconnect` | Runpod API key URL, then save or forget |
 | `connect hf` / `login hf` / `disconnect hf` | Hugging Face token (`hf.token`, 0600) |
@@ -223,7 +225,7 @@ npm ci && npm run docs:build   # VitePress, Node 22, contributors / CI only
 
 ## Notes
 
-- Hub: `GET /api/models` (lexical `search=`; no semantic model-search API), `GET /api/models/{org}/{name}`, and `GET /api/whoami-v2` for token verify.
+- Search defaults to the local SQLite index. Hub `GET /api/models` is used by `update` and `search --online` / `--hub` only (lexical `search=`; rate-limited). `inspect` uses `GET /api/models/{org}/{name}`; `GET /api/whoami-v2` verifies tokens.
 - Config dir: `~/.config/runhug-cli/` (`runpod.key`, `hf.token`, `settings.json`, optional `models.db`).
 - Runpod management: [API v2](https://docs.runpod.io/api-reference-v2/overview).
 - Worker image is pinned to [worker-vllm v2.27.0](https://github.com/runpod-workers/worker-vllm/releases/tag/v2.27.0).

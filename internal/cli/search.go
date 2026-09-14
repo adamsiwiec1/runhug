@@ -13,61 +13,83 @@ import (
 	"github.com/adamsiwiec1/runhug-cli/internal/hf"
 )
 
+type searchFlagVals struct {
+	queryFlag               string
+	author, task, library   *string
+	filter, license, engine *string
+	sort                    *string
+	limit                   *int
+	semanticOn, noSemantic  *bool
+	keyword, online, hub    *bool
+	wrap, wordWrap, ww      *int
+}
+
+func registerSearchFlags(fs *flag.FlagSet) *searchFlagVals {
+	sf := &searchFlagVals{}
+	fs.StringVar(&sf.queryFlag, "query", "", "search query (id, tags, card description; same as positional; wins if both set)")
+	fs.StringVar(&sf.queryFlag, "q", "", "search query (same as --query)")
+	sf.author = fs.String("author", "", "filter by Hugging Face org or user")
+	sf.task = fs.String("task", "auto", "pipeline_tag: auto (detect image/audio/… else any), any, text-generation, text-to-image, …")
+	sf.library = fs.String("library", "", "library filter (transformers, …)")
+	sf.filter = fs.String("filter", "", "extra tag filter (safetensors, gguf, …)")
+	sf.license = fs.String("license", "", "license filter (apache-2.0, mit, gemma, other, …)")
+	sf.engine = fs.String("engine", "", "engine filter (vllm, gguf, …)")
+	sf.sort = fs.String("sort", "relevance", "relevance (default; embedding rerank when available), likes, or downloads — sorts the local index pool (or Hub pool with --online)")
+	sf.limit = fs.Int("limit", 15, "rows to show (1-100)")
+	sf.semanticOn = fs.Bool("semantic", true, "rerank with local embeddings when nomic-embed-text (Ollama) is available")
+	sf.noSemantic = fs.Bool("no-semantic", false, "disable embedding rerank (lexical index search only)")
+	sf.keyword = fs.Bool("keyword", false, "alias for --no-semantic (lexical-only)")
+	sf.online = fs.Bool("online", false, "live Hugging Face Hub search instead of the local SQLite index (rate-limited; set HF_TOKEN)")
+	sf.hub = fs.Bool("hub", false, "alias for --online")
+	sf.wrap, sf.wordWrap, sf.ww = addWrapFlags(fs)
+	return sf
+}
+
+func (sf *searchFlagVals) request(query string) searchRequest {
+	return searchRequest{
+		Query:           query,
+		Author:          *sf.author,
+		Task:            hf.ResolveTask(*sf.task, query),
+		Library:         *sf.library,
+		Filter:          *sf.filter,
+		License:         *sf.license,
+		Engine:          *sf.engine,
+		Sort:            *sf.sort,
+		Limit:           clampLimit(*sf.limit),
+		DisableSemantic: !*sf.semanticOn || *sf.noSemantic || *sf.keyword,
+		Online:          *sf.online || *sf.hub,
+	}
+}
+
 func cmdSearch(args []string) error {
 	fs := newFlagSet("search")
-	var queryFlag string
-	fs.StringVar(&queryFlag, "query", "", "search query (same as positional; wins if both set)")
-	fs.StringVar(&queryFlag, "q", "", "search query (same as --query)")
-	author := fs.String("author", "", "filter by Hugging Face org or user")
-	task := fs.String("task", "auto", "pipeline_tag: auto (detect image/audio/… else any), any, text-generation, text-to-image, …")
-	library := fs.String("library", "", "library filter (transformers, …)")
-	filter := fs.String("filter", "", "extra Hub tag filter (safetensors, gguf, …)")
-	license := fs.String("license", "", "license filter (apache-2.0, mit, gemma, other, …)")
-	engine := fs.String("engine", "", "engine filter (vllm, gguf, …)")
-	sort := fs.String("sort", "relevance", "relevance (default; embedding rerank when available, else id/tags/description), likes, or downloads (re-rank the same 100-hit pool)")
-	limit := fs.Int("limit", 15, "rows to show (1-100)")
-	semanticOn := fs.Bool("semantic", true, "rerank with embeddings when nomic-embed-text (Ollama) or HF Inference is available")
-	noSemantic := fs.Bool("no-semantic", false, "disable embedding rerank (lexical Hub/index search only)")
-	keyword := fs.Bool("keyword", false, "alias for --no-semantic (lexical-only)")
-	wrap, wordWrap, ww := addWrapFlags(fs)
+	sf := registerSearchFlags(fs)
 	asJSON := fs.Bool("json", false, "print JSON")
 	copyIdx := fs.Int("copy", 0, "copy MODEL id for this 1-based row to the clipboard")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
-	*limit = clampLimit(*limit)
-	query := resolveSearchQuery(queryFlag, strings.Join(fs.Args(), " "))
-	resolvedTask := hf.ResolveTask(*task, query)
-	wantSemantic := *semanticOn && !*noSemantic && !*keyword
+	query := resolveSearchQuery(sf.queryFlag, strings.Join(fs.Args(), " "))
+	req := sf.request(query)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	client := hf.New(config.Load().HFToken)
-	models, note, err := searchRanked(ctx, client, hf.SearchOpts{
-		Query:   query,
-		Author:  *author,
-		Task:    resolvedTask,
-		Library: *library,
-		Filter:  *filter,
-		License: *license,
-		Engine:  *engine,
-	}, *sort, *limit, wantSemantic)
+	models, meta, err := searchModels(ctx, req)
 	if err != nil {
 		return err
-	}
-	if note != "" {
-		fmt.Fprintln(os.Stderr, dim(note))
 	}
 	if *asJSON {
 		return writeJSON(models)
 	}
 	printHubResults(os.Stdout, hubView{
-		Query:     query,
-		Models:    models,
-		Sort:      *sort,
-		Limit:     *limit,
-		Command:   quotedCmd("search", query),
-		WrapWidth: resolveWrapWidth(*wrap, *wordWrap, *ww),
+		Query:      query,
+		Models:     models,
+		Sort:       req.Sort,
+		Limit:      req.Limit,
+		Command:    quotedCmd("search", query),
+		RankSource: meta.RankSource,
+		Queries:    meta.Queries,
+		WrapWidth:  resolveWrapWidth(*sf.wrap, *sf.wordWrap, *sf.ww),
 	})
 	if *copyIdx > 0 {
 		if *copyIdx > len(models) {
@@ -94,17 +116,26 @@ func searchAndPrint(query string, opts hubOpts) error {
 	if opts.Command == "" {
 		opts.Command = quotedCmd("search", query)
 	}
-	models, err := searchHub(query, opts.Sort, "any", "", opts.Limit)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	models, meta, err := searchModels(ctx, searchRequest{
+		Query: query,
+		Task:  "any",
+		Sort:  opts.Sort,
+		Limit: opts.Limit,
+	})
 	if err != nil {
 		return err
 	}
 	printHubResults(os.Stdout, hubView{
-		Query:     query,
-		Models:    models,
-		Sort:      opts.Sort,
-		Limit:     opts.Limit,
-		Command:   opts.Command,
-		WrapWidth: opts.WrapWidth,
+		Query:      query,
+		Models:     models,
+		Sort:       opts.Sort,
+		Limit:      opts.Limit,
+		Command:    opts.Command,
+		RankSource: meta.RankSource,
+		Queries:    meta.Queries,
+		WrapWidth:  opts.WrapWidth,
 	})
 	return nil
 }
@@ -128,15 +159,13 @@ func searchHub(query, sort, task, filter string, limit int) ([]hf.Model, error) 
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	client := hf.New(config.Load().HFToken)
-	models, note, err := searchRanked(ctx, client, hf.SearchOpts{
+	models, _, err := searchModels(ctx, searchRequest{
 		Query:  query,
 		Task:   task,
 		Filter: filter,
-	}, sort, limit, true)
-	if note != "" {
-		fmt.Fprintln(os.Stderr, dim(note))
-	}
+		Sort:   sort,
+		Limit:  limit,
+	})
 	return models, err
 }
 

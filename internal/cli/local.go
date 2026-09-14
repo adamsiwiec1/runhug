@@ -41,10 +41,10 @@ func cmdLocalAdd(args []string) error {
 	base := fs.String("url", "", "already-running OpenAI base (e.g. http://127.0.0.1:11434/v1)")
 	download := fs.Bool("download", false, "if the arg is a Hub repo, download a Q4 GGUF")
 	listOnly := fs.Bool("list", false, "only print the scan (default when you pass no name)")
-	pick := fs.Int("pick", 0, "search Hugging Face for this 1-based local model")
+	pick := fs.Int("pick", 0, "search the local index for this 1-based local model")
 	all := fs.Bool("all", false, "register every scan hit")
 	register := fs.Bool("register", false, "put the pick in the registry instead of searching the Hub")
-	limit := fs.Int("limit", 15, "max Hub rows after a search (1-100)")
+	limit := fs.Int("limit", 15, "max search rows after a pick (1-100)")
 	sortKey := fs.String("sort", "relevance", "relevance (default), likes, or downloads")
 	if err := parseFlags(fs, args); err != nil {
 		return err

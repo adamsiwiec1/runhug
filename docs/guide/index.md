@@ -22,11 +22,13 @@ for embeddings, plus an optional local index refresh. No local chat model
 is required for search. Optional `--model` / `--search` still installs a
 local serve model if you want one.
 
-The Hub has no public semantic model-search API (`GET /api/models?search=`
-is lexical). `search` re-ranks the candidate pool with local Ollama
-`nomic-embed-text` or Hugging Face Inference embeddings when available
-(`--keyword` / `--no-semantic` to skip). Default task is auto/`any` so
-image and specialty queries are not forced onto text-generation LLMs.
+`search` queries the local SQLite index (`data/models.db` or
+`~/.config/runhug-cli/models.db`) and does not call the Hub. Run
+`update` to refresh the index from Hugging Face. `--online` / `--hub`
+is a live Hub search (rate-limited; set `HF_TOKEN`). Optional embedding
+rerank uses local Ollama `nomic-embed-text` (`--keyword` / `--no-semantic`
+to skip). Default task is auto/`any` so image and specialty queries are
+not forced onto text-generation LLMs.
 
 `connect` prints the Runpod API keys URL
 ([https://console.runpod.io/user/credentials?tab=api-key](https://console.runpod.io/user/credentials?tab=api-key);
