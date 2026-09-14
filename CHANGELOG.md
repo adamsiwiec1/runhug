@@ -7,6 +7,9 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- Wizard GPU picker no longer full-table redraws on cycle (row wrap / reverse-video width / estimate height broke cursor math). Table prints once; a fixed status frame under it is the only redrawn region. Soft cyan marker on the status line (no reverse-video); `e` toggles a compact estimate (`CompactLine` + short daily line).
+
 ## [0.1.4-beta.1] - 2026-09-14
 
 This project is in **beta**. Pre-releases use hyphen SemVer tags (`v0.1.4-beta.1`). `go install …@latest` ignores pre-releases and stays on the last stable (`v0.1.3`).
