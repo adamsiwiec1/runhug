@@ -11,8 +11,8 @@ type Category struct {
 	ExtraPipelines []string
 }
 
-// DefaultCategories is the v1 practical set. Packs are top-N / samples per
-// category when RUNHUG_INDEX_LIMIT caps rows; structure supports growing.
+// DefaultCategories is the v1 practical set. Packs pull as many Hub models
+// as pass quality filters unless RUNHUG_INDEX_LIMIT / --limit caps rows.
 func DefaultCategories() []Category {
 	return []Category{
 		{

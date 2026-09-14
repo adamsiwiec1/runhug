@@ -120,7 +120,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  RUNPOD_API_KEY     Wins over stored runpod.key")
 	fmt.Fprintln(w, "  RUNHUG_CONFIG      Override registry path (RVP_CONFIG still accepted)")
 	fmt.Fprintln(w, "  RUNHUG_PACKS_REPO  GitHub owner/repo for index packs (default adamsiwiec1/runhug-cli)")
-	fmt.Fprintln(w, "  RUNHUG_INDEX_LIMIT Cap rows/category when building packs (default 5000)")
+	fmt.Fprintln(w, "  RUNHUG_INDEX_LIMIT Cap rows/category when building packs (0/unset = unlimited)")
 	fmt.Fprintln(w, "  NO_COLOR           Disable ANSI colors (or: config set no_color true)")
 }
 

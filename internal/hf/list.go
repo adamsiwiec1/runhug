@@ -16,22 +16,34 @@ import (
 
 // ListOpts controls paginated Hub model listing (for index packs / deltas).
 // Unlike Search, Limit is a total row cap across pages (0 = unlimited until
-// Hub stops returning rows or MaxPages is hit). PageSize defaults to 100.
+// Hub stops returning rows, early-stop filters fire, or MaxPages is hit).
+// PageSize defaults to 100.
+//
+// MaxPages is a safety cap on Hub requests. MaxPages <= 0 means a very high
+// practical cap (50000 pages) so callers can pull “as many as possible”
+// without an accidental infinite loop; pass a positive value to tighten it.
 type ListOpts struct {
-	Query       string
-	Author      string
-	Task        string // pipeline_tag; empty or "any" skips
-	Library     string
-	Filter      string
-	Sort        string // downloads, likes, lastModified, createdAt, …
-	Direction   string // "-1" (default) or "1"
-	Limit       int    // total models to collect (0 = no cap other than MaxPages)
-	PageSize    int    // per-request limit (1–1000; default 100)
-	MaxPages    int    // safety cap (default 200)
-	Full        bool
-	Sleep       time.Duration // pause between pages (rate limits)
-	SinceUnix   int64         // if >0 and Sort=lastModified, stop when page models are older
+	Query        string
+	Author       string
+	Task         string // pipeline_tag; empty or "any" skips
+	Library      string
+	Filter       string
+	Sort         string // downloads, likes, lastModified, createdAt, …
+	Direction    string // "-1" (default) or "1"
+	Limit        int    // total models to collect (0 = no cap other than MaxPages / early-stop)
+	PageSize     int    // per-request limit (1–1000; default 100)
+	MaxPages     int    // safety cap; <=0 → 50000 (no practical cap)
+	Full         bool
+	Sleep        time.Duration // pause between pages (rate limits)
+	SinceUnix    int64         // if >0 and Sort=lastModified, stop when page models are older
+	MinLikes     int           // skip models with likes < MinLikes (0 = no likes filter)
+	MinDownloads int           // skip models with downloads < MinDownloads; with Sort=downloads
+	// desc, also early-exits when a whole page is below the threshold
+	FilterSkipped *int // optional: incremented for each model skipped by MinLikes/MinDownloads
 }
+
+// defaultMaxPages is used when ListOpts.MaxPages <= 0 (unlimited / “as many as possible”).
+const defaultMaxPages = 50000
 
 // ListModels pages through GET /api/models following Link: rel="next".
 // It does not re-rank locally; use for bulk index building.
@@ -45,7 +57,7 @@ func (c *Client) ListModels(ctx context.Context, opts ListOpts) ([]Model, error)
 	}
 	maxPages := opts.MaxPages
 	if maxPages <= 0 {
-		maxPages = 200
+		maxPages = defaultMaxPages
 	}
 	sortKey := strings.TrimSpace(opts.Sort)
 	if sortKey == "" {
@@ -59,6 +71,7 @@ func (c *Client) ListModels(ctx context.Context, opts ListOpts) ([]Model, error)
 	if sleep <= 0 {
 		sleep = 200 * time.Millisecond
 	}
+	downloadsDesc := strings.EqualFold(sortKey, "downloads") && dir == "-1"
 
 	q := url.Values{}
 	if opts.Query != "" {
@@ -105,10 +118,28 @@ func (c *Client) ListModels(ctx context.Context, opts ListOpts) ([]Model, error)
 			break
 		}
 
+		// Early exit: sorted by downloads desc and every model on this page
+		// is below MinDownloads → further pages only get worse.
+		if opts.MinDownloads > 0 && downloadsDesc && pageAllBelowDownloads(models, opts.MinDownloads) {
+			break
+		}
+
 		stopOlder := false
 		for _, m := range models {
 			id := m.RepoID()
 			if id == "" || seen[id] {
+				continue
+			}
+			if opts.MinLikes > 0 && m.Likes < opts.MinLikes {
+				if opts.FilterSkipped != nil {
+					*opts.FilterSkipped++
+				}
+				continue
+			}
+			if opts.MinDownloads > 0 && m.Downloads < int64(opts.MinDownloads) {
+				if opts.FilterSkipped != nil {
+					*opts.FilterSkipped++
+				}
 				continue
 			}
 			if opts.SinceUnix > 0 && strings.EqualFold(sortKey, "lastModified") {
@@ -137,6 +168,19 @@ func (c *Client) ListModels(ctx context.Context, opts ListOpts) ([]Model, error)
 		}
 	}
 	return out, nil
+}
+
+func pageAllBelowDownloads(models []Model, minDownloads int) bool {
+	if len(models) == 0 || minDownloads <= 0 {
+		return false
+	}
+	thresh := int64(minDownloads)
+	for _, m := range models {
+		if m.Downloads >= thresh {
+			return false
+		}
+	}
+	return true
 }
 
 func parseLastModifiedUnix(s string) int64 {
