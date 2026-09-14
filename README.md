@@ -8,7 +8,7 @@ best models for a use case via NLP/vector search, deploy in minutes, and
 list/manage endpoints — faster than the UI. Pull locally when you want; one
 OpenAI-compatible proxy either way.
 
-Commands stay in the terminal: **search**, **recommend**, **init**, **connect**, **deploy**,
+Commands stay in the terminal: **wizard**, **search**, **recommend**, **init**, **connect**, **deploy**,
 **list**, **proxy**.
 
 ## Install
@@ -27,6 +27,14 @@ go build -o bin/runhug-cli ./cmd/runhug-cli
 
 ## First run
 
+Prefer the interactive walkthrough:
+
+```bash
+runhug-cli wizard
+```
+
+Or set up search NLP manually:
+
 ```bash
 runhug-cli init
 ```
@@ -44,6 +52,19 @@ runhug-cli update
 # optional local serve model (not required for search):
 runhug-cli init --model <ollama-tag-or-hub-id>
 ```
+
+
+## Guided setup
+
+New here? Walk start→finish with short y/n prompts:
+
+```bash
+runhug-cli wizard
+```
+
+Aliases: `guide`, `guided`, `setup`. On a non-TTY (or with `--yes`) the same steps print as a checklist — nothing hangs, and **no live Runpod endpoint is created** without an explicit confirm in the interactive flow.
+
+The wizard reuses `init`, `connect` / `connect hf`, optional advisor config, `recommend` / search, GPU sizing, `deploy --dry-run`, then asks before any live deploy and proxy.
 
 ## Category index packs
 
