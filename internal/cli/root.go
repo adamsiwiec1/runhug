@@ -18,6 +18,8 @@ func Run(args []string) error {
 	}
 	cmd, rest := args[0], args[1:]
 	switch cmd {
+	case "wizard", "guide", "guided", "setup":
+		return cmdWizard(rest)
 	case "init":
 		return cmdInit(rest)
 	case "search":
@@ -82,6 +84,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  runhug-cli <command> [flags]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, bold("Setup"))
+	fmt.Fprintln(w, "  wizard             Interactive guided setup (aliases: guide, guided, setup)")
 	fmt.Fprintln(w, "  init               Search NLP setup (embedder + category index packs)")
 	fmt.Fprintln(w, "  connect            Save Runpod API key (0600)")
 	fmt.Fprintln(w, "  connect hf         Save Hugging Face token (0600); aliases: login hf, hf login")

@@ -29,6 +29,7 @@ func TestUsageMentionsSearch(t *testing.T) {
 	s := buf.String()
 	for _, want := range []string{
 		"init",
+		"wizard",
 		"search",
 		"Hugging Face",
 		"inspect",
