@@ -28,6 +28,20 @@ func Run(args []string) error {
 		return cmdConnect(rest)
 	case "disconnect":
 		return cmdDisconnect(rest)
+	case "login":
+		return cmdLogin(rest)
+	case "hf":
+		return cmdHF(rest)
+	case "config":
+		return cmdConfig(rest)
+	case "update":
+		return cmdUpdate(rest)
+	case "index-setup":
+		return cmdIndexSetup(rest)
+	case "index-update":
+		return cmdIndexUpdate(rest)
+	case "index-info", "index":
+		return cmdIndexInfo(rest)
 	case "deploy":
 		return cmdDeploy(rest)
 	case "local":
@@ -60,37 +74,49 @@ func Run(args []string) error {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintf(w, `%s %s — find the best Hugging Face model, deploy on Runpod in minutes, run it for pennies.
-
-Usage:
-  runhug-cli <command> [flags]
-
-Setup
-  init               Runtime + default local model (--model / --search)
-  connect            Print API keys URL, then save a key locally (0600)
-  disconnect         Forget the stored key
-
-Search
-  search [query]     Hugging Face (-q/--query, cards + aliases; semantic rank when available; --sort relevance|likes|downloads, --license, --engine, --limit N)
-  inspect <model>    Hub card, params, VRAM estimate
-
-Runpod
-  deploy <model>     Serverless vLLM (workers min=0)
-  list               Local registry + Runpod when connected  (alias: deployments)
-  proxy              OpenAI proxy on 127.0.0.1:8080/v1  (alias: serve)
-  gpus / import / delete / use / url / status
-
-Local
-  local add          Models already on this machine; --pick N searches Hub
-  local setup        Show / install Ollama, llama.cpp, or MLX
-
-Environment
-  HF_TOKEN           Gated Hub models and optional Inference embeddings (not stored)
-  RUNPOD_API_KEY     Used if set; otherwise the key from connect
-  RUNHUG_CONFIG      Override registry path (RVP_CONFIG still accepted)
-  NO_COLOR           Disable ANSI colors
-`, version.Name, version.Version)
+	printBanner(w)
+	printTagline(w)
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  runhug-cli <command> [flags]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, bold("Setup"))
+	fmt.Fprintln(w, "  init               Runtime + default local starter (Qwen2.5-1.5B); decline to search")
+	fmt.Fprintln(w, "  connect            Save Runpod API key (0600)")
+	fmt.Fprintln(w, "  connect hf         Save Hugging Face token (0600); aliases: login hf, hf login")
+	fmt.Fprintln(w, "  disconnect [hf]    Forget stored Runpod key or HF token")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, bold("Search & index"))
+	fmt.Fprintln(w, "  search [query]     Local SQLite index + Hub; optional embedding rerank")
+	fmt.Fprintln(w, "  inspect <model>    Hub card, params, VRAM estimate")
+	fmt.Fprintln(w, "  update             Refresh local model index from Hub")
+	fmt.Fprintln(w, "  update --cli       Print how to upgrade this CLI (go install / releases)")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, bold("Runpod"))
+	fmt.Fprintln(w, "  deploy <model>     Serverless vLLM (workers min=0)")
+	fmt.Fprintln(w, "  list               Local registry + Runpod when connected  (alias: deployments)")
+	fmt.Fprintln(w, "  proxy              OpenAI proxy on 127.0.0.1:8080/v1  (alias: serve)")
+	fmt.Fprintln(w, "  gpus / import / delete / use / url / status")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, bold("Local"))
+	fmt.Fprintln(w, "  local add          Models already on this machine; --pick N searches Hub")
+	fmt.Fprintln(w, "  local setup        Show / install Ollama, llama.cpp, or MLX")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, bold("Config"))
+	fmt.Fprintln(w, "  config             Show config dir + settings")
+	fmt.Fprintln(w, "  config get|set     Read/write no_color (and show paths)")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, bold("Search stack (honest)"))
+	fmt.Fprintln(w, "  SQLite local model index (data/models.db or ~/.config/runhug-cli/models.db).")
+	fmt.Fprintln(w, "  Optional embedding rerank via Ollama nomic-embed-text or HF Inference.")
+	fmt.Fprintln(w, "  Not a Hub-wide vector database — update refreshes the local index.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, bold("Environment"))
+	fmt.Fprintln(w, "  HF_TOKEN           Wins over stored hf.token (gated Hub / embeddings)")
+	fmt.Fprintln(w, "  RUNPOD_API_KEY     Wins over stored runpod.key")
+	fmt.Fprintln(w, "  RUNHUG_CONFIG      Override registry path (RVP_CONFIG still accepted)")
+	fmt.Fprintln(w, "  NO_COLOR           Disable ANSI colors (or: config set no_color true)")
 }
+
 
 func newFlagSet(name string) *flag.FlagSet {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)

@@ -405,6 +405,25 @@ func (c *Client) Get(ctx context.Context, repoID string) (*Model, error) {
 	return &m, nil
 }
 
+// Whoami verifies a token via GET /api/whoami-v2 and returns the username (never the token).
+func (c *Client) Whoami(ctx context.Context) (string, error) {
+	var info struct {
+		Name     string `json:"name"`
+		FullName string `json:"fullname"`
+		Type     string `json:"type"`
+	}
+	if err := c.get(ctx, "/api/whoami-v2", &info); err != nil {
+		return "", err
+	}
+	if info.Name != "" {
+		return info.Name, nil
+	}
+	if info.FullName != "" {
+		return info.FullName, nil
+	}
+	return "", nil
+}
+
 func (c *Client) get(ctx context.Context, path string, dest any) error {
 	base := c.BaseURL
 	if base == "" {

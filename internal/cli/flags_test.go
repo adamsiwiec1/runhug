@@ -23,10 +23,28 @@ func TestParseFlagsAfterArgs(t *testing.T) {
 }
 
 func TestUsageMentionsSearch(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
 	var buf bytes.Buffer
 	printUsage(&buf)
 	s := buf.String()
-	for _, want := range []string{"init", "search", "Hugging Face", "inspect", "connect", "API keys", "disconnect", "deploy", "list", "deployments", "proxy", "local add", "--pick", "--limit", "--sort", "relevance", "--license", "--engine", "-q", "semantic"} {
+	for _, want := range []string{
+		"init",
+		"search",
+		"Hugging Face",
+		"inspect",
+		"connect",
+		"connect hf",
+		"disconnect",
+		"deploy",
+		"list",
+		"deployments",
+		"proxy",
+		"local add",
+		"update",
+		"config",
+		"SQLite",
+		"default local starter",
+	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("usage missing %q\n%s", want, s)
 		}

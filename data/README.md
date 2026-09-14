@@ -14,7 +14,7 @@ Users can create their own fresh index with:
 
 ```bash
 # Create/update user-local index with latest models
-runhug-cli index-setup
+runhug-cli update
 ```
 
 Once a user-local index exists, it takes precedence over the bundled index.
@@ -39,7 +39,7 @@ To rebuild the bundled index:
 
 ```bash
 # From repo root
-./bin/runhug-cli index-setup --force
+./bin/runhug-cli update --force
 cp ~/.config/runhug-cli/models.db data/models.db
 git add data/models.db
 git commit -m "Update bundled search index"
@@ -51,4 +51,4 @@ git commit -m "Update bundled search index"
 ✅ Offline capable (works without HF API)
 ✅ Privacy (no API calls for search)
 ✅ Small footprint (~100 KB)
-✅ Users can still get latest models via `index-setup`
+✅ Users can still get latest models via `update`

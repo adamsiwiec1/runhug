@@ -3,9 +3,10 @@ package cli
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 )
 
 func useColor() bool {
-	if os.Getenv("NO_COLOR") != "" {
+	if config.ColorDisabled() {
 		return false
 	}
 	return stdoutIsTTY()

@@ -53,7 +53,7 @@ func cmdInit(args []string) error {
 	case canPrompt():
 		def := runtime.Default()
 		printDefaultModel(os.Stdout, eng.Kind, def)
-		ok, err := confirmPrefErr("Install this default locally?", true)
+		ok, err := confirmPrefErr("Install this default local starter?", true)
 		if err != nil {
 			return initNeedChoice()
 		}
@@ -80,10 +80,13 @@ func initNeedChoice() error {
 }
 
 func printDefaultModel(w io.Writer, kind string, d runtime.DefaultModel) {
-	fmt.Fprintf(w, "%s  %s\n", dim("Recommended"), bold(d.HF))
-	printKV(w, "why", d.Why)
+	fmt.Fprintf(w, "%s  %s\n", dim("Default local starter"), bold(d.HF))
+	printKV(w, "why", d.Why+" — small Instruct chat model that fits a laptop")
 	printKV(w, "pull", d.Pull(kind))
 	printKV(w, "hub", cyan(hubLink(d.HF)))
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, dim("Enter to accept, or n to decline and search the Hub / pick another model."))
+	fmt.Fprintln(w, dim("Overrides: --model <id>, --search \"query\", or answer n at the prompt."))
 	fmt.Fprintln(w)
 }
 

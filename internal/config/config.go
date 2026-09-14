@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -14,9 +15,11 @@ const (
 	EnvConfig       = "RUNHUG_CONFIG"
 	EnvConfigLegacy = "RVP_CONFIG"
 
-	appDirName    = "runhug-cli"
-	oldAppDirName = "runpod-vllm-proxy"
-	storedKeyName = "runpod.key"
+	appDirName        = "runhug-cli"
+	oldAppDirName     = "runpod-vllm-proxy"
+	storedKeyName     = "runpod.key"
+	storedHFTokenName = "hf.token"
+	settingsFileName  = "settings.json"
 )
 
 type Env struct {
@@ -58,9 +61,13 @@ func Load() Env {
 	if key == "" {
 		key = loadStoredKey()
 	}
+	hf := SanitizeAPIKey(os.Getenv(EnvHFToken))
+	if hf == "" {
+		hf = loadStoredHFToken()
+	}
 	return Env{
 		RunpodAPIKey: key,
-		HFToken:      strings.TrimSpace(os.Getenv(EnvHFToken)),
+		HFToken:      hf,
 	}
 }
 
@@ -226,4 +233,113 @@ func loadStoredKey() string {
 		return ""
 	}
 	return SanitizeAPIKey(string(raw))
+}
+
+func StoredHFTokenPath() (string, error) {
+	dir, err := Dir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, storedHFTokenName), nil
+}
+
+func SaveHFToken(token string) error {
+	token = SanitizeAPIKey(token)
+	if token == "" {
+		return fmt.Errorf("empty Hugging Face token")
+	}
+	path, err := StoredHFTokenPath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
+}
+
+func DeleteHFToken() error {
+	path, err := StoredHFTokenPath()
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+func HasStoredHFToken() bool {
+	return loadStoredHFToken() != ""
+}
+
+func loadStoredHFToken() string {
+	path, err := StoredHFTokenPath()
+	if err != nil {
+		return ""
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return SanitizeAPIKey(string(raw))
+}
+
+// Settings holds optional CLI defaults under ~/.config/runhug-cli/settings.json.
+type Settings struct {
+	NoColor bool `json:"no_color"`
+}
+
+func SettingsPath() (string, error) {
+	dir, err := Dir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, settingsFileName), nil
+}
+
+func LoadSettings() Settings {
+	path, err := SettingsPath()
+	if err != nil {
+		return Settings{}
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return Settings{}
+	}
+	var s Settings
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return Settings{}
+	}
+	return s
+}
+
+func SaveSettings(s Settings) error {
+	path, err := SettingsPath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	raw, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+	raw = append(raw, '\n')
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
+}
+
+// ColorDisabled reports whether ANSI should be off via env or settings.
+func ColorDisabled() bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return true
+	}
+	return LoadSettings().NoColor
 }
