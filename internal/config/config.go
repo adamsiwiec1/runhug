@@ -10,10 +10,12 @@ import (
 )
 
 const (
-	EnvRunpodAPIKey = "RUNPOD_API_KEY"
-	EnvHFToken      = "HF_TOKEN"
-	EnvConfig       = "RUNHUG_CONFIG"
-	EnvConfigLegacy = "RVP_CONFIG"
+	EnvRunpodAPIKey  = "RUNPOD_API_KEY"
+	EnvHFToken       = "HF_TOKEN"
+	EnvConfig        = "RUNHUG_CONFIG"
+	EnvConfigLegacy  = "RVP_CONFIG"
+	EnvUpdateLimit   = "RUNHUG_UPDATE_LIMIT"
+	DefaultUpdateLimit = 2000
 
 	appDirName        = "runhug-cli"
 	oldAppDirName     = "runpod-vllm-proxy"
@@ -290,7 +292,10 @@ func loadStoredHFToken() string {
 
 // Settings holds optional CLI defaults under ~/.config/runhug-cli/settings.json.
 type Settings struct {
-	NoColor bool `json:"no_color"`
+	NoColor        bool   `json:"no_color"`
+	UpdateLimit    *int   `json:"update_limit,omitempty"` // Hub update row cap; 0=unlimited; nil=default
+	AdvisorBaseURL string `json:"advisor_base_url,omitempty"`
+	AdvisorModel   string `json:"advisor_model,omitempty"`
 }
 
 func SettingsPath() (string, error) {
@@ -334,6 +339,32 @@ func SaveSettings(s Settings) error {
 		return err
 	}
 	return os.Chmod(path, 0o600)
+}
+
+
+// ResolveUpdateLimit returns the Hub update row cap.
+// Precedence: flag (>=0) > RUNHUG_UPDATE_LIMIT > settings.update_limit > DefaultUpdateLimit (2000).
+// 0 means unlimited. flagVal < 0 means the flag was not set.
+func ResolveUpdateLimit(flagVal int) int {
+	if flagVal >= 0 {
+		return flagVal
+	}
+	if v := strings.TrimSpace(os.Getenv(EnvUpdateLimit)); v != "" {
+		var n int
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n >= 0 {
+			return n
+		}
+	}
+	s := LoadSettings()
+	if s.UpdateLimit != nil && *s.UpdateLimit >= 0 {
+		return *s.UpdateLimit
+	}
+	return DefaultUpdateLimit
+}
+
+// EffectiveUpdateLimit returns the resolved limit when no CLI flag is set.
+func EffectiveUpdateLimit() int {
+	return ResolveUpdateLimit(-1)
 }
 
 // ColorDisabled reports whether ANSI should be off via env or settings.

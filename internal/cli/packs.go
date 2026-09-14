@@ -218,7 +218,7 @@ func copyFile(src, dst string) error {
 
 // updateInstalledPacks refreshes installed categories via delta asset, Hub
 // incremental fetch, or full pack replace (--packs).
-func updateInstalledPacks(ctx context.Context, forcePacks bool) error {
+func updateInstalledPacks(ctx context.Context, forcePacks bool, updateLimit int) error {
 	instPath, err := packs.InstalledPath()
 	if err != nil {
 		return err
@@ -247,7 +247,7 @@ func updateInstalledPacks(ctx context.Context, forcePacks bool) error {
 
 	var total int
 	for _, id := range ids {
-		n, err := updateOneCategory(ctx, idx, inst, rc, hfClient, id, forcePacks)
+		n, err := updateOneCategory(ctx, idx, inst, rc, hfClient, id, forcePacks, updateLimit)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s  %s: %v\n", yellow("⚠"), id, err)
 			continue
@@ -271,6 +271,7 @@ func updateOneCategory(
 	hfClient *hf.Client,
 	id string,
 	forcePacks bool,
+	updateLimit int,
 ) (int, error) {
 	entry := inst.Categories[id]
 	wmStr := entry.Watermark
@@ -331,7 +332,7 @@ func updateOneCategory(
 			Task:      task,
 			Filter:    cat.Filter,
 			Sort:      "lastModified",
-			Limit:     2000,
+			Limit:     updateLimit,
 			PageSize:  100,
 			Sleep:     200 * time.Millisecond,
 			SinceUnix: since,
@@ -349,6 +350,7 @@ func updateOneCategory(
 			models = append(models, m)
 		}
 	}
+	models = filterHubDeltaModels(idx, models)
 	n, maxLM, err := packs.UpsertModels(idx, models)
 	if err != nil {
 		return n, err
@@ -360,6 +362,30 @@ func updateOneCategory(
 	inst.Categories[id] = entry
 	fmt.Fprintf(os.Stderr, "%s %s: upserted %d from Hub\n", green("✓"), id, n)
 	return n, nil
+}
+
+// filterHubDeltaModels keeps all existing ids (metadata refresh) and only
+// admits NEW models that meet MinLikes≥3 and MinDownloads≥100.
+func filterHubDeltaModels(idx *index.Index, models []hf.Model) []hf.Model {
+	const minLikes = 3
+	const minDownloads int64 = 100
+	out := make([]hf.Model, 0, len(models))
+	for _, m := range models {
+		rid := m.RepoID()
+		if rid == "" {
+			continue
+		}
+		exists, err := idx.HasModel(rid)
+		if err == nil && exists {
+			out = append(out, m)
+			continue
+		}
+		if m.Likes < minLikes || m.Downloads < minDownloads {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 func replacePackFromRelease(

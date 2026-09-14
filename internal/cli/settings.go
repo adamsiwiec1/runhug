@@ -21,7 +21,7 @@ func cmdConfig(args []string) error {
 	case "path", "paths", "show":
 		return printConfigInfo()
 	default:
-		return fmt.Errorf("usage: runhug-cli config [get|set] [no_color] [true|false]")
+		return fmt.Errorf("usage: runhug-cli config [get|set] <key> [value]\nKnown keys: no_color, update_limit, advisor_base_url, advisor_model")
 	}
 }
 
@@ -61,10 +61,23 @@ func printConfigInfo() error {
 	} else {
 		printKV(os.Stdout, "source", "default (colors when TTY)")
 	}
+	printKV(os.Stdout, "update_limit", strconv.Itoa(config.EffectiveUpdateLimit())+"  (0=unlimited; flag>env>settings>2000)")
+	if s.AdvisorBaseURL != "" {
+		printKV(os.Stdout, "advisor_base_url", s.AdvisorBaseURL)
+	} else {
+		printKV(os.Stdout, "advisor_base_url", "http://127.0.0.1:11434/v1  (default Ollama)")
+	}
+	if s.AdvisorModel != "" {
+		printKV(os.Stdout, "advisor_model", s.AdvisorModel)
+	} else {
+		printKV(os.Stdout, "advisor_model", "(unset — pass --model or set advisor_model)")
+	}
 	fmt.Fprintln(os.Stdout)
 	commands(os.Stdout, "Examples:",
 		"runhug-cli config set no_color true",
-		"runhug-cli config get no_color",
+		"runhug-cli config set update_limit 5000",
+		"runhug-cli config set advisor_base_url http://127.0.0.1:11434/v1",
+		"runhug-cli config get update_limit",
 		"runhug-cli connect hf",
 	)
 	return nil
@@ -80,6 +93,19 @@ func cmdConfigGet(args []string) error {
 	case "no_color", "nocolor":
 		fmt.Println(strconv.FormatBool(s.NoColor))
 		return nil
+	case "update_limit", "updatelimit":
+		fmt.Println(config.EffectiveUpdateLimit())
+		return nil
+	case "advisor_base_url", "advisor_url":
+		if s.AdvisorBaseURL == "" {
+			fmt.Println("http://127.0.0.1:11434/v1")
+		} else {
+			fmt.Println(s.AdvisorBaseURL)
+		}
+		return nil
+	case "advisor_model":
+		fmt.Println(s.AdvisorModel)
+		return nil
 	case "dir", "path":
 		dir, err := config.Dir()
 		if err != nil {
@@ -88,26 +114,36 @@ func cmdConfigGet(args []string) error {
 		fmt.Println(dir)
 		return nil
 	default:
-		return fmt.Errorf("unknown setting %q — known: no_color, dir", args[0])
+		return fmt.Errorf("unknown setting %q — known: no_color, update_limit, advisor_base_url, advisor_model, dir", args[0])
 	}
 }
 
 func cmdConfigSet(args []string) error {
 	if len(args) < 2 {
-		return fmt.Errorf("usage: runhug-cli config set no_color true|false")
+		return fmt.Errorf("usage: runhug-cli config set <key> <value>")
 	}
 	key := strings.ToLower(strings.TrimSpace(args[0]))
-	val := strings.ToLower(strings.TrimSpace(args[1]))
+	val := strings.TrimSpace(args[1])
 	s := config.LoadSettings()
 	switch key {
 	case "no_color", "nocolor":
-		b, err := parseBoolArg(val)
+		b, err := parseBoolArg(strings.ToLower(val))
 		if err != nil {
 			return err
 		}
 		s.NoColor = b
+	case "update_limit", "updatelimit":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 0 {
+			return fmt.Errorf("update_limit must be an integer >= 0 (0=unlimited)")
+		}
+		s.UpdateLimit = &n
+	case "advisor_base_url", "advisor_url":
+		s.AdvisorBaseURL = strings.TrimRight(val, "/")
+	case "advisor_model":
+		s.AdvisorModel = val
 	default:
-		return fmt.Errorf("unknown setting %q — known: no_color", args[0])
+		return fmt.Errorf("unknown setting %q — known: no_color, update_limit, advisor_base_url, advisor_model", args[0])
 	}
 	if err := config.SaveSettings(s); err != nil {
 		return err

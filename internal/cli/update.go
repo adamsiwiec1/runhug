@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adamsiwiec1/runhug-cli/internal/config"
 	"github.com/adamsiwiec1/runhug-cli/internal/index"
 	"github.com/adamsiwiec1/runhug-cli/internal/packs"
 	"github.com/adamsiwiec1/runhug-cli/internal/version"
@@ -29,9 +30,11 @@ func cmdUpdate(args []string) error {
 	force := fs.Bool("force", false, "rebuild the local index from scratch (Hub scrape)")
 	packsFlag := fs.Bool("packs", false, "re-download category packs from latest GitHub Release (full replace)")
 	hubOnly := fs.Bool("hub", false, "refresh from Hub API only (ignore pack releases)")
+	limitFlag := fs.Int("limit", -1, "Hub delta upsert cap (0=unlimited; default 2000; flag > RUNHUG_UPDATE_LIMIT > settings)")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
+	updateLimit := config.ResolveUpdateLimit(*limitFlag)
 	if *cliFlag {
 		return printCLIUpdateHelp(nil)
 	}
@@ -61,13 +64,13 @@ func cmdUpdate(args []string) error {
 			}
 			return installPackCategories(ctx, ids)
 		}
-		return updateInstalledPacks(ctx, true)
+		return updateInstalledPacks(ctx, true, updateLimit)
 	}
 
 	if hasPacks && !*hubOnly {
 		fmt.Fprintln(os.Stdout, dim("Refreshing installed category packs (delta / Hub since watermark)…"))
 		fmt.Fprintln(os.Stdout)
-		return updateInstalledPacks(ctx, false)
+		return updateInstalledPacks(ctx, false, updateLimit)
 	}
 
 	if !index.Exists(indexPath) {
@@ -89,7 +92,7 @@ func cmdUpdate(args []string) error {
 		}
 		return cmdIndexSetup(nil)
 	}
-	return cmdIndexUpdate(nil)
+	return cmdIndexUpdate([]string{"--limit", fmt.Sprintf("%d", updateLimit)})
 }
 
 func printCLIUpdateHelp(args []string) error {
@@ -102,8 +105,9 @@ func printCLIUpdateHelp(args []string) error {
 	fmt.Fprintln(os.Stdout, "Or grab a release:")
 	fmt.Fprintln(os.Stdout, "  "+cyan("https://github.com/adamsiwiec1/runhug-cli/releases"))
 	fmt.Fprintln(os.Stdout)
-	fmt.Fprintln(os.Stdout, dim("Index refresh (separate): runhug-cli update"))
+	fmt.Fprintln(os.Stdout, dim("Index refresh (separate): runhug-cli update [--limit N]"))
 	fmt.Fprintln(os.Stdout, dim("Pack refresh from Releases: runhug-cli update --packs"))
+	fmt.Fprintln(os.Stdout, dim("Limit: flag > RUNHUG_UPDATE_LIMIT > config update_limit > 2000 (0=unlimited)"))
 	fmt.Fprintln(os.Stdout)
 	return nil
 }
