@@ -33,9 +33,9 @@ runhug-cli init
 
 `init` sets up the **search NLP stack** (not a local chat model): detect Ollama
 and offer `ollama pull nomic-embed-text` for embedding rerank, or guide
-`connect hf` for Hugging Face Inference embeddings. Optionally refresh the
-local SQLite index (`update`). Search works without an embedder (lexical
-only); embeddings improve ranking.
+`connect hf` for Hugging Face Inference embeddings. Optionally install **category index packs** from GitHub Releases
+(multi-select) or refresh via `update`. Search works without an embedder
+(lexical only); embeddings improve ranking.
 
 ```bash
 runhug-cli init --yes
@@ -44,6 +44,51 @@ runhug-cli update
 # optional local serve model (not required for search):
 runhug-cli init --model <ollama-tag-or-hub-id>
 ```
+
+## Category index packs
+
+Search uses a **local SQLite** database. Large category packs ship as
+**GitHub Release assets** (not in git). A small starter `data/models.db`
+remains in-repo for offline smoke tests.
+
+| Pack id | Contents |
+| --- | --- |
+| `text-generation` | LLMs (`pipeline_tag=text-generation`) |
+| `text-to-image` | Image models |
+| `video` | `text-to-video` + `image-to-video` |
+| `audio` | TTS + ASR |
+| `gguf` | `filter=gguf` |
+
+**Approach:** downloaded packs are stored under
+`~/.config/runhug-cli/packs/<id>.db` (provenance) and **merged** into
+`~/.config/runhug-cli/models.db` with idempotent upserts so search keeps a
+single DB path.
+
+```bash
+runhug-cli init          # multi-select categories → download + merge
+runhug-cli update        # deltas: Hub lastModified > watermark (or delta JSONL)
+runhug-cli update --packs  # re-check Releases; full pack replace if needed
+```
+
+Pack assets on a release:
+
+- `index-manifest.json` — id, title, pipeline/filter, rows, size_bytes, sha256, db_filename, watermark
+- `index-<category>.db` — SQLite (`models` + `metadata`, same schema as today)
+- optional `index-<category>-delta.jsonl` — new/changed rows since prior watermark
+
+Override the release repo with `RUNHUG_PACKS_REPO=owner/name` (default
+`adamsiwiec1/runhug-cli`). Build packs locally:
+
+```bash
+export HF_TOKEN=…          # recommended
+export RUNHUG_INDEX_LIMIT=5000   # per-category cap (v1 samples/top-N)
+go run ./cmd/build-index-packs --out dist/index --limit 5000
+# or: ./scripts/build-index-packs --out dist/index
+```
+
+CI uploads packs on `release` published and via `workflow_dispatch`
+(`.github/workflows/release-index-packs.yml`). First real upload can be a
+manual dispatch onto an existing tag.
 
 ## Search
 

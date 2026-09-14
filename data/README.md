@@ -53,3 +53,18 @@ git commit -m "Update bundled search index"
 ✅ Privacy (no API calls for search)
 ✅ Small footprint (~100 KB)
 ✅ Users can still get latest models via `update`
+
+
+## Category packs (GitHub Releases)
+
+Large category databases are **not** committed here. They are built by
+`cmd/build-index-packs` and attached to releases as:
+
+- `index-manifest.json`
+- `index-<category>.db`
+
+`runhug-cli init` downloads selected packs, verifies `sha256`, keeps copies
+under `~/.config/runhug-cli/packs/`, and merges into `models.db`.
+
+v1 packs are capped with `RUNHUG_INDEX_LIMIT` (default 5000 rows/category) so
+CI stays practical; the manifest/schema support larger packs later.

@@ -182,13 +182,13 @@ func initOfferIndex(yes bool) error {
 	case hasBundled:
 		printKV(os.Stdout, "index", cyan("bundled")+"  "+dim(bundled))
 	default:
-		printKV(os.Stdout, "index", yellow("missing — Hub API only until update"))
+		printKV(os.Stdout, "index", yellow("missing — install packs or run update"))
 	}
 	fmt.Fprintln(os.Stdout)
 
-	ok := yes && !hasLocal
+	ok := yes
 	if !ok && canPrompt() {
-		prompt := "Refresh local search index from Hub now?"
+		prompt := "Install category index packs from GitHub Releases?"
 		def := !hasLocal
 		var err error
 		ok, err = confirmPrefErr(prompt, def)
@@ -197,11 +197,26 @@ func initOfferIndex(yes bool) error {
 		}
 	}
 	if !ok {
-		fmt.Fprintln(os.Stdout, dim("Skip index refresh — run: runhug-cli update"))
+		fmt.Fprintln(os.Stdout, dim("Skip packs — run: runhug-cli init  (or update)"))
 		fmt.Fprintln(os.Stdout)
 		return nil
 	}
-	return cmdUpdate(nil)
+
+	ids, err := promptPackCategories(yes)
+	if err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancel()
+	if err := installPackCategories(ctx, ids); err != nil {
+		fmt.Fprintf(os.Stderr, "%s  Pack install failed: %v\n", yellow("⚠"), err)
+		fmt.Fprintln(os.Stdout, dim("Falling back to Hub index refresh…"))
+		return cmdUpdate(nil)
+	}
+	return nil
 }
 
 func fileExists(path string) bool {
