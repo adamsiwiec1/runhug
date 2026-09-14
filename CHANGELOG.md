@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Approximate serverless **cost estimate** block on `wizard` GPU options, `recommend gpu`, and `deploy --dry-run`: $/hr while up, cold-start range from weight size, $/cold vs $/warm request, and daily scenarios (10/100/1000 req, all-warm / 10% cold / all-cold). Labeled as estimates only.
+- `wizard` GPU step lists fitting serverless pools (recommended cheapest fit + larger/safer options with VRAM, example GPU, $/hr, stock); user picks by number and that pool is passed to dry-run / live `deploy --gpu`. New `runpod.ListFitting` / `FittingOptions` helpers.
+
+### Fixed
+- `wizard` Find-a-model shortlist searches the **raw user query** with `--sort likes` and `--no-semantic` (no `ParseIntent` → `"instruct"` rewrite, no `recommend.Score` known-publisher re-rank). Prints likes/downloads like `search`. `recommend --no-llm` uses the same likes-ordered lexical pool.
+
 ## [0.1.2] - 2026-09-14
 
 ### Added

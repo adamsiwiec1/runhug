@@ -129,19 +129,8 @@ func Pick(gpus []GPU, requiredGB float64, preferPool string, gpuCount int) (Choi
 		return c, nil
 	}
 
-	var fit []Pool
-	for _, p := range pools {
-		if p.InStock && p.MemoryGB+0.01 >= requiredGB && p.PricePerHour > 0 {
-			fit = append(fit, p)
-		}
-	}
+	fit := ListFitting(gpus, requiredGB)
 	if len(fit) > 0 {
-		sort.Slice(fit, func(i, j int) bool {
-			if fit[i].PricePerHour != fit[j].PricePerHour {
-				return fit[i].PricePerHour < fit[j].PricePerHour
-			}
-			return fit[i].MemoryGB < fit[j].MemoryGB
-		})
 		best := fit[0]
 		c := Choice{
 			Pool:      best,
@@ -177,6 +166,85 @@ func Pick(gpus []GPU, requiredGB float64, preferPool string, gpuCount int) (Choi
 		HourlyUSD: largest.PricePerHour * float64(need),
 		Reason:    fmt.Sprintf("%.1f GB does not fit one in-stock card; %dx %s (%.0f GB)", requiredGB, need, largest.ID, largest.MemoryGB),
 	}, nil
+}
+
+// ListFitting returns in-stock serverless pools whose MemoryGB can hold
+// requiredGB, sorted by $/hr ascending then VRAM ascending (cheapest fit first).
+func ListFitting(gpus []GPU, requiredGB float64) []Pool {
+	if requiredGB <= 0 {
+		requiredGB = 16
+	}
+	pools := SummarizePools(gpus)
+	var fit []Pool
+	for _, p := range pools {
+		if p.InStock && p.MemoryGB+0.01 >= requiredGB && p.PricePerHour > 0 {
+			fit = append(fit, p)
+		}
+	}
+	sort.Slice(fit, func(i, j int) bool {
+		if fit[i].PricePerHour != fit[j].PricePerHour {
+			return fit[i].PricePerHour < fit[j].PricePerHour
+		}
+		if fit[i].MemoryGB != fit[j].MemoryGB {
+			return fit[i].MemoryGB < fit[j].MemoryGB
+		}
+		return fit[i].ID < fit[j].ID
+	})
+	return fit
+}
+
+// FittingOptions returns up to limit pools for interactive pickers: the
+// cheapest fitting pool first (recommended), then larger-VRAM alternatives
+// sorted by price. limit <= 0 defaults to 5.
+func FittingOptions(gpus []GPU, requiredGB float64, limit int) []Pool {
+	if limit <= 0 {
+		limit = 5
+	}
+	fit := ListFitting(gpus, requiredGB)
+	if len(fit) == 0 {
+		return nil
+	}
+	if len(fit) <= limit {
+		return fit
+	}
+	out := []Pool{fit[0]}
+	// Prefer larger/safer cards after the recommended cheapest fit.
+	var larger []Pool
+	for _, p := range fit[1:] {
+		if p.MemoryGB > fit[0].MemoryGB+0.01 {
+			larger = append(larger, p)
+		}
+	}
+	sort.Slice(larger, func(i, j int) bool {
+		if larger[i].MemoryGB != larger[j].MemoryGB {
+			return larger[i].MemoryGB < larger[j].MemoryGB
+		}
+		return larger[i].PricePerHour < larger[j].PricePerHour
+	})
+	for _, p := range larger {
+		if len(out) >= limit {
+			break
+		}
+		out = append(out, p)
+	}
+	// Fill remaining slots with other fitting pools (same VRAM, etc.).
+	if len(out) < limit {
+		seen := map[string]bool{}
+		for _, p := range out {
+			seen[p.ID] = true
+		}
+		for _, p := range fit[1:] {
+			if len(out) >= limit {
+				break
+			}
+			if seen[p.ID] {
+				continue
+			}
+			out = append(out, p)
+			seen[p.ID] = true
+		}
+	}
+	return out
 }
 
 func findPool(pools []Pool, id string) (Pool, bool) {
