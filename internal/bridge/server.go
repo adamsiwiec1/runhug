@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -171,21 +172,22 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 		modelForResp = dm
 	}
 
-	upURL := s.cfg.UpstreamBase + "/chat/completions"
-	upReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, upURL, bytes.NewReader(openaiBody))
-	if err != nil {
-		anthropicHTTPError(w, http.StatusBadGateway, "api_error", err.Error())
-		return
-	}
-	upReq.Header.Set("Content-Type", "application/json")
-	if key := strings.TrimSpace(s.cfg.UpstreamKey); key != "" {
-		upReq.Header.Set("Authorization", "Bearer "+key)
-	}
-
-	upRes, err := s.client.Do(upReq)
+	upRes, err := s.doChatCompletions(r.Context(), openaiBody)
 	if err != nil {
 		anthropicHTTPError(w, http.StatusBadGateway, "api_error", "upstream: "+err.Error())
 		return
+	}
+	// worker-vllm often 500s on tools unless ENABLE_AUTO_TOOL_CHOICE + TOOL_CALL_PARSER
+	// are configured (and some models still lack tool support). Retry once without tools.
+	if upRes.StatusCode >= 500 && openaiBodyHasTools(openaiBody) {
+		_ = upRes.Body.Close()
+		stripped := stripTools(openaiBody)
+		fmt.Fprintln(os.Stderr, "runhug bridge: upstream rejected tools (HTTP 5xx); retrying without tools/tool_choice")
+		upRes, err = s.doChatCompletions(r.Context(), stripped)
+		if err != nil {
+			anthropicHTTPError(w, http.StatusBadGateway, "api_error", "upstream: "+err.Error())
+			return
+		}
 	}
 	defer upRes.Body.Close()
 
@@ -283,6 +285,49 @@ func (f *flushWriter) Flush() {
 	if f.f != nil {
 		f.f.Flush()
 	}
+}
+
+func (s *Server) doChatCompletions(ctx context.Context, openaiBody []byte) (*http.Response, error) {
+	upURL := s.cfg.UpstreamBase + "/chat/completions"
+	upReq, err := http.NewRequestWithContext(ctx, http.MethodPost, upURL, bytes.NewReader(openaiBody))
+	if err != nil {
+		return nil, err
+	}
+	upReq.Header.Set("Content-Type", "application/json")
+	if key := strings.TrimSpace(s.cfg.UpstreamKey); key != "" {
+		upReq.Header.Set("Authorization", "Bearer "+key)
+	}
+	return s.client.Do(upReq)
+}
+
+// stripTools removes tools and tool_choice from an OpenAI chat-completions JSON body.
+func stripTools(openaiBody []byte) []byte {
+	var m map[string]any
+	if err := json.Unmarshal(openaiBody, &m); err != nil {
+		return openaiBody
+	}
+	delete(m, "tools")
+	delete(m, "tool_choice")
+	delete(m, "parallel_tool_calls")
+	out, err := json.Marshal(m)
+	if err != nil {
+		return openaiBody
+	}
+	return out
+}
+
+func openaiBodyHasTools(body []byte) bool {
+	var probe struct {
+		Tools json.RawMessage `json:"tools"`
+	}
+	if err := json.Unmarshal(body, &probe); err != nil {
+		return false
+	}
+	raw := bytes.TrimSpace(probe.Tools)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) || bytes.Equal(raw, []byte("[]")) {
+		return false
+	}
+	return true
 }
 
 func anthropicHTTPError(w http.ResponseWriter, status int, typ, msg string) {
