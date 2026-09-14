@@ -194,3 +194,32 @@ func TestWizardShortlistDoesNotRewriteToInstruct(t *testing.T) {
 		t.Fatalf("instruct rewrite must not pull unrelated instruct model: %v", ids)
 	}
 }
+
+func TestDeployArgsIncludesGPU(t *testing.T) {
+	got := deployArgs("org/model", "AMPERE_48", "--dry-run")
+	want := []string{"org/model", "--dry-run", "--gpu", "AMPERE_48"}
+	if len(got) != len(want) {
+		t.Fatalf("got %#v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %#v want %#v", got, want)
+		}
+	}
+	got = deployArgs("org/model", "", "--yes")
+	if len(got) != 2 || got[1] != "--yes" {
+		t.Fatalf("empty gpu should omit --gpu: %#v", got)
+	}
+}
+
+func TestWizardChecklistMentionsGPUPick(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	var buf bytes.Buffer
+	if err := wizardChecklist(&buf); err != nil {
+		t.Fatal(err)
+	}
+	s := buf.String()
+	if !strings.Contains(s, "--gpu") {
+		t.Fatalf("checklist should mention deploy --gpu\n%s", s)
+	}
+}

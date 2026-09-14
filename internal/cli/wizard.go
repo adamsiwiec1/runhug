@@ -11,6 +11,8 @@ import (
 	"github.com/adamsiwiec1/runhug-cli/internal/config"
 	"github.com/adamsiwiec1/runhug-cli/internal/hf"
 	"github.com/adamsiwiec1/runhug-cli/internal/recommend"
+	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
+	"github.com/adamsiwiec1/runhug-cli/internal/sizing"
 	"github.com/adamsiwiec1/runhug-cli/internal/store"
 )
 
@@ -80,12 +82,12 @@ func wizardChecklist(w io.Writer) error {
 		},
 		{
 			title: "7. GPU sizing",
-			note:  "Suggest a serverless pool / VRAM.",
-			cmds:  []string{"runhug-cli recommend gpu <org/model>"},
+			note:  "List fitting pools + approximate $/request costs; pick one for deploy.",
+			cmds:  []string{"runhug-cli recommend gpu <org/model>", "runhug-cli deploy <org/model> --dry-run --gpu <POOL>"},
 		},
 		{
 			title: "8. Deploy dry-run",
-			note:  "Always plan first — cost/GPU, nothing created.",
+			note:  "Always plan first — cost/GPU estimate, nothing created.",
 			cmds:  []string{"runhug-cli deploy <org/model> --dry-run"},
 		},
 		{
@@ -160,21 +162,30 @@ func runWizard() error {
 	printKV(w, "model", bold(modelID))
 	fmt.Fprintln(w)
 
-	if err := wizardGPU(w, modelID); err != nil {
+	gpuPool, err := wizardGPU(w, modelID)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s  %v\n", yellow("⚠"), err)
 		fmt.Fprintln(w, dim("Continuing — you can still dry-run deploy."))
 		fmt.Fprintln(w)
 	}
+	if gpuPool != "" {
+		printKV(w, "gpu", bold(gpuPool))
+		fmt.Fprintln(w)
+	}
 
-	if err := wizardDeployDryRun(w, modelID); err != nil {
+	if err := wizardDeployDryRun(w, modelID, gpuPool); err != nil {
 		fmt.Fprintf(os.Stderr, "%s  dry-run failed: %v\n", yellow("⚠"), err)
-		fmt.Fprintln(w, dim("Fix connect / network, then: runhug-cli deploy "+modelID+" --dry-run"))
+		cmd := "runhug-cli deploy " + modelID + " --dry-run"
+		if gpuPool != "" {
+			cmd += " --gpu " + gpuPool
+		}
+		fmt.Fprintln(w, dim("Fix connect / network, then: "+cmd))
 		fmt.Fprintln(w)
 		wizardDone(w, modelID, false)
 		return nil
 	}
 
-	deployed, err := wizardLiveDeploy(w, modelID)
+	deployed, err := wizardLiveDeploy(w, modelID, gpuPool)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s  %v\n", yellow("⚠"), err)
 		fmt.Fprintln(w)
@@ -430,12 +441,165 @@ func hfTaskHint(m hf.Model) string {
 	return ""
 }
 
-func wizardGPU(w io.Writer, modelID string) error {
+func wizardGPU(w io.Writer, modelID string) (string, error) {
 	wizardStep(w, 7, "GPU sizing")
-	return cmdRecommendGPU([]string{modelID})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	model, err := resolveWizardModel(ctx, modelID)
+	if err != nil {
+		return "", err
+	}
+	live := loadGPUCatalog(ctx)
+	adv, err := recommend.AdviseGPU(*model, live, "", 8192)
+	if err != nil {
+		return "", err
+	}
+
+	heading(w, "VRAM estimate")
+	printKV(w, "model", bold(model.RepoID()))
+	printKV(w, "params", adv.Params)
+	if adv.WeightGB > 0 {
+		printKV(w, "vram", fmt.Sprintf("%.1f GB weights → %.1f GB with overhead", adv.WeightGB, adv.RequiredGB))
+	} else {
+		printKV(w, "vram", fmt.Sprintf("~%.1f GB required (estimate)", adv.RequiredGB))
+	}
+	if adv.Offline {
+		fmt.Fprintln(w, dim("Using offline GPU catalog (connect Runpod for live stock/prices)."))
+	}
+	fmt.Fprintln(w)
+
+	catalog := live
+	if len(catalog) == 0 {
+		catalog = runpod.OfflineCatalog()
+	}
+	opts := runpod.FittingOptions(catalog, adv.RequiredGB, 5)
+	if len(opts) == 0 {
+		// Fall back to the single Suggest pick (may be multi-GPU).
+		if adv.Choice.Pool.ID == "" {
+			return "", fmt.Errorf("no fitting GPU pools for ~%.1f GB", adv.RequiredGB)
+		}
+		fmt.Fprintln(w, bold("Suggested")+"  "+dim(adv.Choice.Reason))
+		fmt.Fprintf(w, "  %s  %s\n", cyan("1)"), bold(adv.Choice.Pool.ID)+"  "+dim(adv.Text))
+		fmt.Fprintln(w)
+		return adv.Choice.Pool.ID, nil
+	}
+
+	fmt.Fprintln(w, bold("GPU options")+"  "+dim("recommended = cheapest in-stock fit; higher # = more VRAM headroom"))
+	for i, p := range opts {
+		tag := ""
+		if i == 0 {
+			tag = "  " + green("recommended")
+		} else if p.MemoryGB > opts[0].MemoryGB+0.01 {
+			tag = "  " + dim("larger / safer")
+		}
+		stock := p.Availability
+		if stock == "" {
+			if p.InStock {
+				stock = "in stock"
+			} else {
+				stock = "none"
+			}
+		}
+		cost := sizing.EstimateServerlessCost(p.PricePerHour, adv.WeightGB, 1, 5, true)
+		fmt.Fprintf(w, "  %s  %s  %s%s\n",
+			cyan(fmt.Sprintf("%d)", i+1)),
+			bold(p.ID),
+			dim(fmt.Sprintf("%.0f GB · %s · $%.2f/hr · %s", p.MemoryGB, dash(p.ExampleGPU), p.PricePerHour, stock)),
+			tag,
+		)
+		fmt.Fprintf(w, "      %s\n", dim(cost.CompactLine()))
+	}
+	fmt.Fprintln(w)
+	headroom := opts[0].MemoryGB - adv.RequiredGB
+	if headroom >= 0 && headroom < 2 {
+		fmt.Fprintln(w, yellow("⚠")+"  "+dim(fmt.Sprintf(
+			"%s fits (~%.1f GB need on %.0f GB) but is tight — a larger pool is optional and safer.",
+			opts[0].ID, adv.RequiredGB, opts[0].MemoryGB)))
+		fmt.Fprintln(w)
+	}
+	recCost := sizing.EstimateServerlessCost(opts[0].PricePerHour, adv.WeightGB, 1, 5, true)
+	fmt.Fprintln(w, bold(recCost.FormatBlock(opts[0].ID)))
+	fmt.Fprintln(w)
+
+	hint := fmt.Sprintf("Pick GPU 1-%d (Enter = recommended)", len(opts))
+	line, err := readLine(hint + ": ")
+	if err != nil {
+		return "", err
+	}
+	pick := 1
+	if strings.TrimSpace(line) != "" {
+		n, q, repo := parseChoice(line, len(opts))
+		_ = q
+		_ = repo
+		if n <= 0 {
+			// Allow typing a pool id directly.
+			want := strings.TrimSpace(line)
+			found := -1
+			for i, p := range opts {
+				if strings.EqualFold(p.ID, want) {
+					found = i + 1
+					break
+				}
+			}
+			if found < 0 {
+				return "", fmt.Errorf("expected a number 1-%d or a pool id", len(opts))
+			}
+			pick = found
+		} else {
+			pick = n
+		}
+	}
+	chosenPool := opts[pick-1]
+	chosen := chosenPool.ID
+	fmt.Fprintln(w, green("✓")+"  "+dim("Using GPU pool "+chosen))
+	if pick != 1 {
+		fmt.Fprintln(w)
+		chosenCost := sizing.EstimateServerlessCost(chosenPool.PricePerHour, adv.WeightGB, 1, 5, true)
+		fmt.Fprintln(w, bold(chosenCost.FormatBlock(chosen)))
+	}
+	fmt.Fprintln(w)
+	return chosen, nil
 }
 
-func wizardDeployDryRun(w io.Writer, modelID string) error {
+func resolveWizardModel(ctx context.Context, modelID string) (*hf.Model, error) {
+	env := config.Load()
+	model, err := hf.New(env.HFToken).Get(ctx, modelID)
+	if err == nil {
+		return model, nil
+	}
+	models, _, serr := searchModels(ctx, searchRequest{
+		Query:           modelID,
+		Task:            "any",
+		Sort:            "likes",
+		Limit:           5,
+		DisableSemantic: true,
+	})
+	if serr != nil || len(models) == 0 {
+		return nil, fmt.Errorf("model %q: %v", modelID, err)
+	}
+	found := models[0]
+	for _, m := range models {
+		if strings.EqualFold(m.RepoID(), modelID) {
+			found = m
+			break
+		}
+	}
+	fmt.Fprintf(os.Stderr, "%s  Hub fetch failed; using local index metadata for %s\n", yellow("⚠"), found.RepoID())
+	return &found, nil
+}
+
+func deployArgs(modelID string, gpuPool string, extra ...string) []string {
+	args := []string{modelID}
+	args = append(args, extra...)
+	if strings.TrimSpace(gpuPool) != "" {
+		args = append(args, "--gpu", strings.TrimSpace(gpuPool))
+	}
+	return args
+}
+
+func wizardDeployDryRun(w io.Writer, modelID, gpuPool string) error {
 	wizardStep(w, 8, "Deploy dry-run")
 	env := config.Load()
 	if !env.Connected() {
@@ -453,20 +617,30 @@ func wizardDeployDryRun(w io.Writer, modelID string) error {
 		}
 	}
 	fmt.Fprintln(w, dim("Planning only — nothing will be created."))
+	if gpuPool != "" {
+		printKV(w, "gpu", bold(gpuPool))
+	}
 	fmt.Fprintln(w)
-	return cmdDeploy([]string{modelID, "--dry-run"})
+	return cmdDeploy(deployArgs(modelID, gpuPool, "--dry-run"))
 }
 
-func wizardLiveDeploy(w io.Writer, modelID string) (bool, error) {
+func wizardLiveDeploy(w io.Writer, modelID, gpuPool string) (bool, error) {
 	wizardStep(w, 9, "Live deploy?")
 	env := config.Load()
 	if !env.Connected() {
 		fmt.Fprintln(w, yellow("⚠")+"  "+dim("Runpod not connected — skipping live create."))
-		fmt.Fprintln(w, dim("Later: runhug-cli connect && runhug-cli deploy "+modelID))
+		later := "runhug-cli connect && runhug-cli deploy " + modelID
+		if gpuPool != "" {
+			later += " --gpu " + gpuPool
+		}
+		fmt.Fprintln(w, dim("Later: "+later))
 		fmt.Fprintln(w)
 		return false, nil
 	}
 	fmt.Fprintln(w, dim("This creates a serverless endpoint and can bill while a worker is up."))
+	if gpuPool != "" {
+		printKV(w, "gpu", bold(gpuPool))
+	}
 	ok, err := confirmPrefErr("Create the live Runpod endpoint now?", false)
 	if err != nil {
 		return false, err
@@ -477,7 +651,7 @@ func wizardLiveDeploy(w io.Writer, modelID string) (bool, error) {
 		return false, nil
 	}
 	// Explicit confirm already collected — pass --yes to avoid a second prompt.
-	if err := cmdDeploy([]string{modelID, "--yes"}); err != nil {
+	if err := cmdDeploy(deployArgs(modelID, gpuPool, "--yes")); err != nil {
 		return false, err
 	}
 	return true, nil

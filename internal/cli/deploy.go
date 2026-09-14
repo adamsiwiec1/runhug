@@ -262,6 +262,11 @@ func printPlan(modelID string, format hf.Format, est sizing.Estimate, c runpod.C
 	printKV(os.Stdout, "image", req.Image)
 	printKV(os.Stdout, "disk", fmt.Sprintf("%d GB", req.Disk))
 	printKV(os.Stdout, "workers", fmt.Sprintf("min=%d max=%d flashboot=%s", req.Workers.Min, req.Workers.Max, req.Flashboot))
+	idleSec := 5
+	if req.Scaling != nil && req.Scaling.IdleTimeout > 0 {
+		idleSec = req.Scaling.IdleTimeout
+	}
+	printKV(os.Stdout, "idle", fmt.Sprintf("%ds before scale-down", idleSec))
 	keys := make([]string, 0, len(req.Env))
 	for k := range req.Env {
 		if k == "HF_TOKEN" {
@@ -273,6 +278,10 @@ func printPlan(modelID string, format hf.Format, est sizing.Estimate, c runpod.C
 	if hasHF {
 		printKV(os.Stdout, "hf_token", "set (not printed)")
 	}
+	fmt.Fprintln(os.Stdout)
+	fb := strings.EqualFold(req.Flashboot, "FLASHBOOT") || strings.EqualFold(req.Flashboot, "PRIORITY_FLASHBOOT")
+	cost := sizing.EstimateServerlessCost(c.HourlyUSD, est.WeightGB, c.GPUCount, idleSec, fb)
+	fmt.Fprintln(os.Stdout, bold(cost.FormatBlock(c.Pool.ID)))
 }
 
 var slugRe = regexp.MustCompile(`[^a-z0-9-]+`)
