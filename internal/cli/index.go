@@ -22,7 +22,7 @@ func cmdIndexSetup(args []string) error {
 	indexPath := indexFilePath()
 	if index.Exists(indexPath) && !*force {
 		fmt.Fprintf(os.Stderr, "%s  Index already exists at %s\n", yellow("⚠"), indexPath)
-		fmt.Fprintf(os.Stderr, "   Use --force to rebuild, or run: %s\n", cyan("runhug-cli index-update"))
+		fmt.Fprintf(os.Stderr, "   Use --force to rebuild, or run: %s\n", cyan("runhug-cli update"))
 		return nil
 	}
 
@@ -185,7 +185,7 @@ func cmdIndexUpdate(args []string) error {
 
 	indexPath := indexFilePath()
 	if !index.Exists(indexPath) {
-		fmt.Fprintf(os.Stderr, "%s  No index found. Run: %s\n", yellow("⚠"), cyan("runhug-cli index-setup"))
+		fmt.Fprintf(os.Stderr, "%s  No index found. Run: %s\n", yellow("⚠"), cyan("runhug-cli update"))
 		return nil
 	}
 
@@ -276,7 +276,7 @@ func cmdIndexInfo(args []string) error {
 
 	if !hasLocal && !hasBundled {
 		fmt.Fprintf(os.Stderr, "%s  No index found\n", yellow("⚠"))
-		fmt.Fprintf(os.Stderr, "   Run: %s to create your own index\n", cyan("runhug-cli index-setup"))
+		fmt.Fprintf(os.Stderr, "   Run: %s to create your own index\n", cyan("runhug-cli update"))
 		return nil
 	}
 
@@ -316,7 +316,7 @@ func cmdIndexInfo(args []string) error {
 
 		if time.Since(lastUpdate).Hours() > 24*7 {
 			fmt.Fprintf(os.Stdout, "%s  Index is over a week old\n", yellow("⚠"))
-			fmt.Fprintf(os.Stdout, "   Run: %s\n", cyan("runhug-cli index-update"))
+			fmt.Fprintf(os.Stdout, "   Run: %s\n", cyan("runhug-cli update"))
 			fmt.Fprintln(os.Stdout)
 		}
 	}
@@ -343,7 +343,7 @@ func cmdIndexInfo(args []string) error {
 
 			if !hasLocal {
 				fmt.Fprintf(os.Stdout, "%s  Using bundled index (ships with package)\n", dim("ℹ"))
-				fmt.Fprintf(os.Stdout, "   Run %s for latest models\n", cyan("runhug-cli index-setup"))
+				fmt.Fprintf(os.Stdout, "   Run %s for latest models\n", cyan("runhug-cli update"))
 				fmt.Fprintln(os.Stdout)
 			}
 		}
@@ -351,8 +351,8 @@ func cmdIndexInfo(args []string) error {
 
 	commands(os.Stdout, "Commands:",
 		"runhug-cli search -q \"...\"",
-		"runhug-cli index-update",
-		"runhug-cli index-setup --force",
+		"runhug-cli update",
+		"runhug-cli update --force",
 	)
 
 	return nil

@@ -330,3 +330,113 @@ func captureStdout(t *testing.T, fn func()) string {
 	_ = r.Close()
 	return buf.String()
 }
+
+func TestConnectHFKeySaves(t *testing.T) {
+	setupConnectHFTest(t)
+	const secret = "hf-test-token-never-print"
+	out := captureStdout(t, func() {
+		if err := cmdConnect([]string{"hf", "--token", secret}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if strings.Contains(out, secret) {
+		t.Fatal("must not print the HF token")
+	}
+	if !strings.Contains(out, "Connected") || !strings.Contains(out, "0600") {
+		t.Fatalf("output %q", out)
+	}
+	if config.Load().HFToken != secret {
+		t.Fatal("stored")
+	}
+	path, err := config.StoredHFTokenPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(path) != "hf.token" {
+		t.Fatalf("path %q", path)
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode().Perm() != 0o600 {
+		t.Fatalf("perm %o", st.Mode().Perm())
+	}
+}
+
+func TestConnectHFRejectedNotSaved(t *testing.T) {
+	setupConnectHFTest(t)
+	verifyHF = func(string) (string, error) {
+		return "", errors.New("huggingface: HTTP 401: unauthorized")
+	}
+	if err := config.SaveHFToken("old-hf"); err != nil {
+		t.Fatal(err)
+	}
+	err := cmdConnect([]string{"hf", "--token", "bad-hf"})
+	if err == nil || !strings.Contains(err.Error(), "rejected") {
+		t.Fatalf("err %v", err)
+	}
+	if config.Load().HFToken != "old-hf" {
+		t.Fatal("must keep previous token")
+	}
+}
+
+func TestLoginHFAlias(t *testing.T) {
+	setupConnectHFTest(t)
+	out := captureStdout(t, func() {
+		if err := cmdLogin([]string{"hf", "--token", "hf-via-login"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if strings.Contains(out, "hf-via-login") {
+		t.Fatal("must not print token")
+	}
+	if config.Load().HFToken != "hf-via-login" {
+		t.Fatal("stored via login")
+	}
+}
+
+func TestDisconnectHF(t *testing.T) {
+	setupConnectHFTest(t)
+	if err := config.SaveHFToken("to-remove"); err != nil {
+		t.Fatal(err)
+	}
+	out := captureStdout(t, func() {
+		if err := cmdDisconnect([]string{"hf"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if strings.Contains(out, "to-remove") {
+		t.Fatal("must not print token")
+	}
+	if config.HasStoredHFToken() {
+		t.Fatal("removed")
+	}
+}
+
+func TestConnectHFHeadlessPrintsURL(t *testing.T) {
+	setupConnectHFTest(t)
+	var err error
+	out := captureStdout(t, func() {
+		err = cmdConnect([]string{"hf"})
+	})
+	if err == nil || !strings.Contains(err.Error(), config.EnvHFToken) {
+		t.Fatalf("err %v", err)
+	}
+	if !strings.Contains(out, hfTokensURL) {
+		t.Fatalf("missing tokens URL\n%s", out)
+	}
+}
+
+func setupConnectHFTest(t *testing.T) {
+	t.Helper()
+	setupConnectTest(t)
+	origHF, origAskHF, origReadHF := verifyHF, askReplaceHF, readHFToken
+	t.Cleanup(func() {
+		verifyHF, askReplaceHF, readHFToken = origHF, origAskHF, origReadHF
+	})
+	t.Setenv(config.EnvHFToken, "")
+	verifyHF = func(string) (string, error) { return "test-user", nil }
+	askReplaceHF = func() (bool, error) { t.Fatal("askReplaceHF"); return false, nil }
+	readHFToken = func() (string, error) { t.Fatal("readHFToken"); return "", nil }
+}

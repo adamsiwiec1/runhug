@@ -265,3 +265,109 @@ func TestLoadUsesRUNHUGConfigOverride(t *testing.T) {
 		t.Fatalf("got %q", Load().RunpodAPIKey)
 	}
 }
+
+func TestLoadHFTokenPrefersEnvOverStored(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(EnvConfig, filepath.Join(dir, "registry.json"))
+	t.Setenv(EnvConfigLegacy, "")
+	t.Setenv(EnvRunpodAPIKey, "")
+	if err := SaveHFToken("stored-hf"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(EnvHFToken, "env-hf")
+	if Load().HFToken != "env-hf" {
+		t.Fatalf("env first: %q", Load().HFToken)
+	}
+	t.Setenv(EnvHFToken, "")
+	if Load().HFToken != "stored-hf" {
+		t.Fatalf("stored: %q", Load().HFToken)
+	}
+}
+
+func TestSaveHFTokenPermissionsAndDelete(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(EnvConfig, filepath.Join(dir, "registry.json"))
+	t.Setenv(EnvHFToken, "")
+	if err := SaveHFToken("  hf-secret  "); err != nil {
+		t.Fatal(err)
+	}
+	path, err := StoredHFTokenPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode().Perm() != 0o600 {
+		t.Fatalf("perm %o", st.Mode().Perm())
+	}
+	if filepath.Base(path) != "hf.token" {
+		t.Fatalf("path %q", path)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "hf-secret\n" {
+		t.Fatalf("file %q", raw)
+	}
+	if Load().HFToken != "hf-secret" {
+		t.Fatal("load after save")
+	}
+	if err := DeleteHFToken(); err != nil {
+		t.Fatal(err)
+	}
+	if Load().HFToken != "" {
+		t.Fatal("expected empty after delete")
+	}
+	if err := DeleteHFToken(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSaveHFTokenRejectsEmpty(t *testing.T) {
+	t.Setenv(EnvConfig, filepath.Join(t.TempDir(), "registry.json"))
+	if err := SaveHFToken("  "); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestSettingsLoadSaveNoColor(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(EnvConfig, filepath.Join(dir, "registry.json"))
+	t.Setenv("NO_COLOR", "")
+	if LoadSettings().NoColor {
+		t.Fatal("default false")
+	}
+	if err := SaveSettings(Settings{NoColor: true}); err != nil {
+		t.Fatal(err)
+	}
+	path, err := SettingsPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(path) != "settings.json" {
+		t.Fatalf("path %q", path)
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode().Perm() != 0o600 {
+		t.Fatalf("perm %o", st.Mode().Perm())
+	}
+	s := LoadSettings()
+	if !s.NoColor {
+		t.Fatal("expected no_color true")
+	}
+	if !ColorDisabled() {
+		t.Fatal("ColorDisabled")
+	}
+	if err := SaveSettings(Settings{NoColor: false}); err != nil {
+		t.Fatal(err)
+	}
+	if LoadSettings().NoColor {
+		t.Fatal("expected false")
+	}
+}

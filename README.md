@@ -31,9 +31,10 @@ go build -o bin/runhug-cli ./cmd/runhug-cli
 runhug-cli init
 ```
 
-`init` installs a local runtime if needed (Ollama by default) and recommends
-**Qwen/Qwen2.5-1.5B-Instruct** (`qwen2.5:1.5b`). Enter to accept, or `n` to
-search the Hub and pick something else.
+`init` installs a local runtime if needed (Ollama by default) and offers the
+**default local starter** **Qwen/Qwen2.5-1.5B-Instruct** (`qwen2.5:1.5b`) —
+small official Instruct chat model that fits a laptop. Enter to accept, or
+`n` to decline and search the Hub / pick something else (`--model`, `--search`).
 
 ```bash
 runhug-cli init --yes
@@ -87,6 +88,24 @@ it is already pulled, otherwise Hugging Face Inference
 lexical scoring. Chat models such as Qwen2.5-1.5B-Instruct are not used
 as embedders.
 
+### Local index (not a Hub-wide vector DB)
+
+What ships today:
+
+- A **SQLite** local model index (`data/models.db`, or a user copy under
+  `~/.config/runhug-cli/models.db`)
+- Optional **embedding rerank** (`internal/semantic`) via Ollama
+  `nomic-embed-text` or Hugging Face Inference
+
+This is **not** a full Hub-wide vector database. Semantic search means local
+index + optional embeddings on the candidate pool. Refresh the index with:
+
+```bash
+runhug-cli update
+runhug-cli update --force   # rebuild from Hub
+runhug-cli update --cli     # print how to upgrade the CLI itself
+```
+
 ## Connect to Runpod
 
 Runpod's public API is a Bearer key (no OAuth for this CLI). `connect` prints
@@ -105,7 +124,17 @@ runhug-cli disconnect
 If you are already connected, `connect` says so without reprinting the secret
 and offers to replace the stored key. A rejected key is not saved.
 
-`HF_TOKEN` is for gated Hub models and optional Inference embeddings. It is not stored.
+`HF_TOKEN` is for gated Hub models and optional Inference embeddings. Env still
+wins when set; otherwise a stored `hf.token` (mode `0600`) from `connect hf` /
+`login hf` is used.
+
+```bash
+runhug-cli connect hf
+runhug-cli login hf
+runhug-cli disconnect hf
+runhug-cli config
+runhug-cli config set no_color true
+```
 
 ## Deploy, list, proxy
 
@@ -140,7 +169,7 @@ LM Studio caches, `$RVP_CACHE`, and `$RVP_MODELS`.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `HF_TOKEN` | gated or private Hub models; optional Inference embeddings | Hugging Face token (never printed, not stored) |
+| `HF_TOKEN` | gated or private Hub models; optional Inference embeddings | Hugging Face token (never printed; wins over stored `hf.token`) |
 | `RUNPOD_API_KEY` | if you have not run `connect` | [API key](https://docs.runpod.io/get-started/api-keys) |
 | `RUNHUG_CONFIG` | no | Override registry path (key file beside it; `RVP_CONFIG` still accepted) |
 | `RVP_MODELS` | no | Extra directories to scan for GGUF |
@@ -154,7 +183,10 @@ LM Studio caches, `$RVP_CACHE`, and `$RVP_MODELS`.
 | `init` | Runtime + default local model (or `--model` / `--search`) |
 | `search` | Hugging Face search |
 | `inspect` | Hub card + params + VRAM |
-| `connect` / `disconnect` | Print the API keys URL, then save or forget the key |
+| `connect` / `disconnect` | Runpod API key URL, then save or forget |
+| `connect hf` / `login hf` / `disconnect hf` | Hugging Face token (`hf.token`, 0600) |
+| `config` / `config get|set` | Paths + `no_color` in `settings.json` |
+| `update` | Refresh local SQLite search index (`update --cli` for CLI install tips) |
 | `deploy` | Serverless vLLM |
 | `list` | Local registry + Runpod deployments when connected |
 | `proxy` | OpenAI proxy on localhost (`serve` is an alias) |
@@ -180,7 +212,8 @@ npm ci && npm run docs:build   # VitePress, Node 22, contributors / CI only
 
 ## Notes
 
-- Hub: `GET /api/models` (lexical `search=`; no semantic model-search API) and `GET /api/models/{org}/{name}`.
+- Hub: `GET /api/models` (lexical `search=`; no semantic model-search API), `GET /api/models/{org}/{name}`, and `GET /api/whoami-v2` for token verify.
+- Config dir: `~/.config/runhug-cli/` (`runpod.key`, `hf.token`, `settings.json`, optional `models.db`).
 - Runpod management: [API v2](https://docs.runpod.io/api-reference-v2/overview).
 - Worker image is pinned to [worker-vllm v2.27.0](https://github.com/runpod-workers/worker-vllm/releases/tag/v2.27.0).
 - Runpod also ships an agent plugin for pods and `runpodctl`:
