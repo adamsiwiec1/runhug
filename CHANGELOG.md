@@ -7,6 +7,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-14
+
 ### Added
 - `wizard` (aliases: `guide`, `guided`, `setup`): interactive guided setup from search stack → connect → find model → dry-run deploy; `--yes` / non-TTY prints a checklist and never live-deploys.
 - Configurable Hub update limit: `update --limit N`, `RUNHUG_UPDATE_LIMIT`, `config set update_limit` (default 2000; 0=unlimited). New Hub models require likes≥3 and downloads≥100; existing ids always refresh.
