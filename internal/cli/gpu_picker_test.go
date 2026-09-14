@@ -83,37 +83,80 @@ func TestApplyGPUPickAction(t *testing.T) {
 	}
 }
 
-func TestFormatGPUPickTableColumns(t *testing.T) {
+func TestFormatGPUPickTableStatic(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	rows := sampleGPURows()
-	out := formatGPUPickTable(rows, 0, false, 18)
-	for _, want := range []string{"POOL", "VRAM", "EXAMPLE", "$/HR", "STOCK", "NOTE", "ADA_24", "AMPERE_48", "›", "recommended", "↑/↓"} {
+	out := formatGPUPickTable(rows)
+	for _, want := range []string{"POOL", "VRAM", "EXAMPLE", "$/HR", "STOCK", "NOTE", "ADA_24", "AMPERE_48", "recommended"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("table missing %q\n%s", want, out)
 		}
 	}
-	if strings.Contains(out, "Cost estimate") || strings.Contains(out, "daily scenarios") {
-		t.Fatalf("estimates must be opt-in; got cost dump:\n%s", out)
+	if strings.Contains(out, "›") {
+		t.Fatalf("static table must not highlight selection:\n%s", out)
 	}
-	// Highlighted row only when estimate toggled.
-	with := formatGPUPickTable(rows, 1, true, 18)
-	if !strings.Contains(with, "Cost estimate for AMPERE_48") {
-		t.Fatalf("expected estimate for highlighted AMPERE_48:\n%s", with)
+	if strings.Contains(out, "\033[7m") {
+		t.Fatalf("must not use reverse-video:\n%s", out)
 	}
-	if strings.Contains(with, "Cost estimate for ADA_24") {
-		t.Fatalf("must not dump estimates for non-highlighted rows:\n%s", with)
+	if strings.Contains(out, "Cost estimate") || strings.Contains(out, "daily scenarios") || strings.Contains(out, "CompactLine") {
+		t.Fatalf("table must not include estimates:\n%s", out)
 	}
-	plain := formatGPUPickTable(rows, -1, false, 0)
-	if strings.Contains(plain, "›") {
-		t.Fatalf("plain table should not highlight:\n%s", plain)
+	// Help lives in the status frame, not the table.
+	if strings.Contains(out, "↑/↓") {
+		t.Fatalf("help should be in status frame, not table:\n%s", out)
 	}
 }
 
-func TestFormatGPUPickTableNoEstimateByDefaultForAll(t *testing.T) {
+func TestFormatGPUPickStatus(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	rows := sampleGPURows()
-	out := formatGPUPickTable(rows, 0, false, 18)
-	if strings.Count(out, "est. $/cold") != 0 {
-		t.Fatalf("unexpected cold cost lines:\n%s", out)
+	out := formatGPUPickStatus(rows, 0)
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	if len(lines) != gpuStatusLines {
+		t.Fatalf("status lines=%d want %d\n%s", len(lines), gpuStatusLines, out)
+	}
+	if !strings.Contains(out, "›") || !strings.Contains(out, "ADA_24") {
+		t.Fatalf("status missing selection marker:\n%s", out)
+	}
+	if !strings.Contains(out, "1 of 3") || !strings.Contains(out, "recommended") {
+		t.Fatalf("status missing position/note:\n%s", out)
+	}
+	if !strings.Contains(out, "↑/↓") || !strings.Contains(out, "Enter") {
+		t.Fatalf("status missing help:\n%s", out)
+	}
+	out2 := formatGPUPickStatus(rows, 1)
+	if !strings.Contains(out2, "AMPERE_48") || !strings.Contains(out2, "2 of 3") {
+		t.Fatalf("status for row1:\n%s", out2)
+	}
+	if strings.Contains(out2, "\033[7m") {
+		t.Fatalf("status must not use reverse-video")
+	}
+}
+
+func TestFormatGPUPickEstimateCompact(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	rows := sampleGPURows()
+	out := formatGPUPickEstimate(rows[1], 18)
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	if len(lines) != gpuEstimateLines {
+		t.Fatalf("estimate lines=%d want %d\n%s", len(lines), gpuEstimateLines, out)
+	}
+	if !strings.Contains(out, "~/hr") && !strings.Contains(out, "/hr") {
+		t.Fatalf("expected CompactLine-style hint:\n%s", out)
+	}
+	if strings.Contains(out, "Cost estimate for") || strings.Contains(out, "daily scenarios") || strings.Contains(out, "assumptions") {
+		t.Fatalf("must not use huge FormatBlock:\n%s", out)
+	}
+	if !strings.Contains(out, "~100 req/day") {
+		t.Fatalf("expected short daily line:\n%s", out)
+	}
+}
+
+func TestGPUFrameLinesStable(t *testing.T) {
+	if gpuFrameLines(false) != gpuStatusLines {
+		t.Fatalf("hidden est frame=%d", gpuFrameLines(false))
+	}
+	if gpuFrameLines(true) != gpuStatusLines+gpuEstimateLines {
+		t.Fatalf("shown est frame=%d", gpuFrameLines(true))
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
 	"github.com/adamsiwiec1/runhug-cli/internal/sizing"
@@ -122,19 +121,24 @@ func applyGPUPickAction(action gpuPickAction, jump, selected, n int, showEst boo
 	return sel, est, done, usedRecommended
 }
 
-func formatGPUPickHelp() string {
-	return dim("↑/↓ j/k n/p  cycle · 1–9 jump · e estimate (highlighted) · Enter select · Esc/q recommended")
-}
-
+// Short columns so the static table fits ~80 cols without wrapping.
 const (
 	gpuColNum     = 2
-	gpuColPool    = 14
-	gpuColVRAM    = 6
-	gpuColExample = 16
-	gpuColPrice   = 7
-	gpuColStock   = 8
-	gpuColNote    = 14
+	gpuColPool    = 12
+	gpuColVRAM    = 5
+	gpuColExample = 12
+	gpuColPrice   = 6
+	gpuColStock   = 6
+	gpuColNote    = 12
+
+	// Fixed status frame (always redrawn). Estimate adds a stable block below.
+	gpuStatusLines   = 3
+	gpuEstimateLines = 3
 )
+
+func formatGPUPickHelp() string {
+	return dim("↑/↓ or j/k cycle · e estimate · Enter select · Esc/q recommended")
+}
 
 func formatGPUPickHeader() string {
 	return dim(fmt.Sprintf("  %s  %s  %s  %s  %s  %s  %s",
@@ -148,88 +152,115 @@ func formatGPUPickHeader() string {
 	))
 }
 
-func formatGPUPickRow(i int, row gpuPickRow, selected int) string {
+// formatGPUPickRow renders one static table row (no selection highlight).
+func formatGPUPickRow(i int, row gpuPickRow) string {
 	p := row.Pool
-	marker := " "
-	if selected >= 0 && i == selected {
-		marker = "›"
-	}
 	num := strconv.Itoa(i + 1)
-	line := fmt.Sprintf("%s %s  %s  %s  %s  %s  %s  %s",
-		marker,
+	line := fmt.Sprintf("  %s  %s  %s  %s  %s  %s  %s",
 		padRight(num, gpuColNum),
 		padRight(truncateRunes(p.ID, gpuColPool), gpuColPool),
-		padRight(fmt.Sprintf("%.0f GB", p.MemoryGB), gpuColVRAM),
+		padRight(fmt.Sprintf("%.0fGB", p.MemoryGB), gpuColVRAM),
 		padRight(truncateRunes(dash(p.ExampleGPU), gpuColExample), gpuColExample),
 		padRight(fmt.Sprintf("$%.2f", p.PricePerHour), gpuColPrice),
 		padRight(truncateRunes(poolStockLabel(p), gpuColStock), gpuColStock),
 		padRight(truncateRunes(row.Note, gpuColNote), gpuColNote),
 	)
-	if selected >= 0 && i == selected {
-		if useColor() {
-			return paint("\033[36m\033[7m", line)
-		}
-		return line
-	}
-	if i == 0 && row.Note == "recommended" {
-		// Soft emphasis on the recommended pool id when not highlighted.
+	if i == 0 && row.Note == "recommended" && useColor() {
 		parts := strings.SplitN(line, p.ID, 2)
-		if len(parts) == 2 && useColor() {
+		if len(parts) == 2 {
 			return parts[0] + green(p.ID) + parts[1]
 		}
 	}
 	return line
 }
 
-// formatGPUPickTable renders the pool table. selected < 0 disables the › highlight.
-// When showEstimate is true, appends the full cost block for the highlighted row only.
-func formatGPUPickTable(rows []gpuPickRow, selected int, showEstimate bool, weightGB float64) string {
+// formatGPUPickTable renders the static pool table (no per-row highlight, no estimate).
+func formatGPUPickTable(rows []gpuPickRow) string {
 	if len(rows) == 0 {
 		return ""
 	}
-	if selected >= len(rows) {
-		selected = len(rows) - 1
-	}
-
 	var b strings.Builder
 	b.WriteString(formatGPUPickHeader())
 	b.WriteByte('\n')
 	for i, row := range rows {
-		b.WriteString(formatGPUPickRow(i, row, selected))
-		b.WriteByte('\n')
-	}
-	b.WriteString(formatGPUPickHelp())
-	b.WriteByte('\n')
-
-	if showEstimate && selected >= 0 && selected < len(rows) {
-		p := rows[selected].Pool
-		cost := sizing.EstimateServerlessCost(p.PricePerHour, weightGB, 1, 5, true)
-		b.WriteByte('\n')
-		b.WriteString(bold(cost.FormatBlock(p.ID)))
-		b.WriteByte('\n')
-		b.WriteString(dim("(e again to hide estimate)"))
+		b.WriteString(formatGPUPickRow(i, row))
 		b.WriteByte('\n')
 	}
 	return b.String()
 }
 
-func countPrintedLines(s string) int {
-	if s == "" {
-		return 0
+// formatGPUPickStatus is the fixed 3-line frame under the table (selection lives here).
+func formatGPUPickStatus(rows []gpuPickRow, selected int) string {
+	if len(rows) == 0 {
+		return strings.Repeat("\n", gpuStatusLines-1) + "\n"
 	}
-	n := strings.Count(s, "\n")
-	if !strings.HasSuffix(s, "\n") {
-		n++
+	if selected < 0 {
+		selected = 0
+	}
+	if selected >= len(rows) {
+		selected = len(rows) - 1
+	}
+	row := rows[selected]
+	p := row.Pool
+	marker := "›"
+	detail := fmt.Sprintf("%s %s  %.0f GB  %s  $%.2f/hr  %s",
+		marker,
+		p.ID,
+		p.MemoryGB,
+		dash(p.ExampleGPU),
+		p.PricePerHour,
+		poolStockLabel(p),
+	)
+	if useColor() {
+		detail = cyan(detail)
+	}
+	note := row.Note
+	if note == "" {
+		note = "—"
+	}
+	pos := fmt.Sprintf("  %d of %d · %s", selected+1, len(rows), note)
+	help := "  " + formatGPUPickHelp()
+	return detail + "\n" + dim(pos) + "\n" + help + "\n"
+}
+
+// formatGPUPickEstimate is a compact estimate block (exactly gpuEstimateLines lines).
+func formatGPUPickEstimate(row gpuPickRow, weightGB float64) string {
+	cost := sizing.EstimateServerlessCost(row.Pool.PricePerHour, weightGB, 1, 5, true)
+	line1 := "  " + cost.CompactLine()
+	warm := cost.DailyScenarioUSD(100, 0)
+	mixed := cost.DailyScenarioUSD(100, 0.10)
+	cold := cost.DailyScenarioUSD(100, 1)
+	line2 := fmt.Sprintf("  ~100 req/day  warm ≈ $%.4f · 10%% cold ≈ $%.4f · all-cold ≈ $%.4f", warm, mixed, cold)
+	line3 := "  " + dim("(e again to hide)")
+	// Pad/truncate to exactly gpuEstimateLines for stable clear.
+	lines := []string{line1, line2, line3}
+	for len(lines) < gpuEstimateLines {
+		lines = append(lines, "")
+	}
+	if len(lines) > gpuEstimateLines {
+		lines = lines[:gpuEstimateLines]
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func gpuFrameLines(showEstimate bool) int {
+	n := gpuStatusLines
+	if showEstimate {
+		n += gpuEstimateLines
 	}
 	return n
 }
 
-func redrawGPUPick(w io.Writer, prevLines int, body string) int {
+// redrawGPUPickFrame moves up by prevLines, clears, prints status (+ optional estimate).
+func redrawGPUPickFrame(w io.Writer, prevLines int, rows []gpuPickRow, selected int, showEst bool, weightGB float64) int {
 	if prevLines > 0 {
 		fmt.Fprintf(w, "\033[%dA\033[J", prevLines)
 	}
-	fmt.Fprint(w, body)
-	return countPrintedLines(body)
+	fmt.Fprint(w, formatGPUPickStatus(rows, selected))
+	if showEst && selected >= 0 && selected < len(rows) {
+		fmt.Fprint(w, formatGPUPickEstimate(rows[selected], weightGB))
+	}
+	return gpuFrameLines(showEst)
 }
 
 // pickGPUPool runs the interactive TTY picker when possible; otherwise a plain numbered list.
@@ -258,7 +289,7 @@ func pickGPUPool(w io.Writer, opts []runpod.Pool, requiredGB, weightGB float64) 
 }
 
 func pickGPUPoolPlain(w io.Writer, rows []gpuPickRow) (string, error) {
-	fmt.Fprint(w, formatGPUPickTable(rows, -1, false, 0))
+	fmt.Fprint(w, formatGPUPickTable(rows))
 	fmt.Fprintln(w)
 	hint := fmt.Sprintf("Pick GPU 1-%d (Enter = recommended)", len(rows))
 	line, err := readLine(hint + ": ")
@@ -299,12 +330,13 @@ func pickGPUPoolTTY(w io.Writer, rows []gpuPickRow, weightGB float64) (string, e
 	}
 	defer func() { _ = term.Restore(fd, old) }()
 
+	// Print the pool table once — never redrawn while cycling.
+	fmt.Fprint(w, formatGPUPickTable(rows))
+	fmt.Fprintln(w)
+
 	selected := 0
 	showEst := false
-	prev := 0
-
-	body := formatGPUPickTable(rows, selected, showEst, weightGB)
-	prev = redrawGPUPick(w, 0, body)
+	prev := redrawGPUPickFrame(w, 0, rows, selected, showEst, weightGB)
 
 	for {
 		key, err := readTTYKey(os.Stdin)
@@ -332,8 +364,7 @@ func pickGPUPoolTTY(w io.Writer, rows []gpuPickRow, weightGB float64) (string, e
 			fmt.Fprintln(w)
 			return chosen, nil
 		}
-		body = formatGPUPickTable(rows, selected, showEst, weightGB)
-		prev = redrawGPUPick(w, prev, body)
+		prev = redrawGPUPickFrame(w, prev, rows, selected, showEst, weightGB)
 	}
 }
 
@@ -360,28 +391,4 @@ func readTTYKey(f *os.File) ([]byte, error) {
 		return b[:1], nil
 	}
 	return b[:1+n2], nil
-}
-
-// visibleWidth approximates printed width ignoring simple ANSI CSI m sequences.
-func visibleWidth(s string) int {
-	plain := s
-	for {
-		i := strings.IndexByte(plain, 0x1b)
-		if i < 0 {
-			break
-		}
-		j := i + 1
-		if j < len(plain) && plain[j] == '[' {
-			for j < len(plain) && plain[j] != 'm' {
-				j++
-			}
-			if j < len(plain) {
-				j++
-			}
-			plain = plain[:i] + plain[j:]
-			continue
-		}
-		break
-	}
-	return utf8.RuneCountInString(plain)
 }
