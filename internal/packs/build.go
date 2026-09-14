@@ -13,34 +13,62 @@ import (
 	"github.com/adamsiwiec1/runhug-cli/internal/index"
 )
 
+// Default quality filters for Hub pack builds (likes≥3 AND downloads≥100).
+const (
+	DefaultMinLikes     = 3
+	DefaultMinDownloads = 100
+)
+
 // BuildOpts configures pack generation.
 type BuildOpts struct {
-	OutDir     string
-	Limit      int           // per category (0 → env RUNHUG_INDEX_LIMIT or 5000)
-	Categories []string      // empty = all defaults
-	Sleep      time.Duration // between Hub pages
-	Full       bool          // expand cardData etc.
-	SourceRepo string
+	OutDir       string
+	Limit        int           // per category; <=0 = unlimited after ResolveLimit
+	Categories   []string      // empty = all defaults
+	Sleep        time.Duration // between Hub pages
+	Full         bool          // expand cardData etc.
+	SourceRepo   string
+	MinLikes     int // skip models with fewer likes (0 = no likes filter)
+	MinDownloads int // skip models with fewer downloads (0 = no downloads filter / early-stop)
 }
 
-// DefaultLimit reads RUNHUG_INDEX_LIMIT or returns 5000.
+// DefaultLimit reads RUNHUG_INDEX_LIMIT when set to a non-negative int.
+// If unset, returns 0 (unlimited). There is no hard-coded 5000 default.
 func DefaultLimit() int {
 	if v := strings.TrimSpace(os.Getenv(EnvIndexLimit)); v != "" {
 		n, err := strconv.Atoi(v)
-		if err == nil && n > 0 {
+		if err == nil && n >= 0 {
 			return n
 		}
 	}
-	return 5000
+	return 0
+}
+
+// ResolveLimit returns an explicit positive Limit, else RUNHUG_INDEX_LIMIT if
+// set, else 0 (unlimited). Limit <= 0 does not fall back to 5000.
+func ResolveLimit(limit int) int {
+	if limit > 0 {
+		return limit
+	}
+	return DefaultLimit()
 }
 
 // Build writes index-<cat>.db files and index-manifest.json into opts.OutDir.
+// Limit <= 0 means unlimited rows (env RUNHUG_INDEX_LIMIT only applies when
+// set). Models are fetched sorted by downloads so ListModels can early-stop
+// once a page falls below MinDownloads.
 func Build(ctx context.Context, client *hf.Client, opts BuildOpts) (*Manifest, error) {
 	if opts.OutDir == "" {
 		return nil, fmt.Errorf("out dir required")
 	}
-	if opts.Limit <= 0 {
-		opts.Limit = DefaultLimit()
+	opts.Limit = ResolveLimit(opts.Limit)
+	// Defaults: MinLikes/MinDownloads both 0 → apply package defaults (3 / 100).
+	// MinLikes < 0 means caller explicitly disabled filters (treat as 0,0).
+	if opts.MinLikes < 0 {
+		opts.MinLikes = 0
+		opts.MinDownloads = 0
+	} else if opts.MinLikes == 0 && opts.MinDownloads == 0 {
+		opts.MinLikes = DefaultMinLikes
+		opts.MinDownloads = DefaultMinDownloads
 	}
 	if opts.Sleep <= 0 {
 		opts.Sleep = 250 * time.Millisecond
@@ -113,35 +141,66 @@ func buildOne(ctx context.Context, client *hf.Client, opts BuildOpts, cat Catego
 	seen := map[string]bool{}
 	var maxLM time.Time
 	total := 0
+	skippedDup := 0
+	filterSkipped := 0
+	unlimited := opts.Limit <= 0
+
 	perPipeLimit := opts.Limit
-	if len(pipelines) > 1 {
+	if !unlimited && len(pipelines) > 1 {
 		perPipeLimit = (opts.Limit + len(pipelines) - 1) / len(pipelines)
 	}
 
+	// MaxPages=0 → ListModels uses a very high safety cap (50000).
+	maxPages := 0
+	if !unlimited {
+		maxPages = (opts.Limit / 50) + 200
+		if maxPages < 200 {
+			maxPages = 200
+		}
+		if maxPages > 50000 {
+			maxPages = 50000
+		}
+	}
+
 	fetch := func(task string) error {
-		remaining := opts.Limit - total
-		if remaining <= 0 {
+		if !unlimited && total >= opts.Limit {
 			return nil
 		}
-		lim := perPipeLimit
-		if lim > remaining {
-			lim = remaining
+		lim := 0
+		if !unlimited {
+			remaining := opts.Limit - total
+			if remaining <= 0 {
+				return nil
+			}
+			lim = perPipeLimit
+			if lim > remaining {
+				lim = remaining
+			}
 		}
 		models, err := client.ListModels(ctx, hf.ListOpts{
-			Task:     task,
-			Filter:   cat.Filter,
-			Sort:     "downloads",
-			Limit:    lim,
-			PageSize: 100,
-			Sleep:    opts.Sleep,
-			Full:     opts.Full,
+			Task:          task,
+			Filter:        cat.Filter,
+			Sort:          "downloads",
+			Direction:     "-1",
+			Limit:         lim,
+			PageSize:      100,
+			MaxPages:      maxPages,
+			Sleep:         opts.Sleep,
+			Full:          opts.Full,
+			MinLikes:      opts.MinLikes,
+			MinDownloads:  opts.MinDownloads,
+			FilterSkipped: &filterSkipped,
 		})
 		if err != nil {
 			return err
 		}
+		keptBefore := total
 		for _, m := range models {
 			id := m.RepoID()
 			if id == "" || seen[id] {
+				if id != "" && seen[id] {
+					skippedDup++
+				}
 				continue
 			}
 			seen[id] = true
@@ -152,12 +211,17 @@ func buildOne(ctx context.Context, client *hf.Client, opts BuildOpts, cat Catego
 			if lm := parseLM(m.LastModified); lm.After(maxLM) {
 				maxLM = lm
 			}
-			if total >= opts.Limit {
+			if !unlimited && total >= opts.Limit {
 				break
 			}
 		}
+		fmt.Fprintf(os.Stderr, "  [%s] task=%q kept+=%d total=%d (filter_skip=%d dup_skip=%d)\n",
+			cat.ID, task, total-keptBefore, total, filterSkipped, skippedDup)
 		return nil
 	}
+
+	fmt.Fprintf(os.Stderr, "Building pack %s (limit=%s min_likes=%d min_downloads=%d)\n",
+		cat.ID, limitLabel(opts.Limit), opts.MinLikes, opts.MinDownloads)
 
 	if len(pipelines) == 0 {
 		if err := fetch(""); err != nil {
@@ -165,7 +229,7 @@ func buildOne(ctx context.Context, client *hf.Client, opts BuildOpts, cat Catego
 		}
 	} else {
 		for _, p := range pipelines {
-			if total >= opts.Limit {
+			if !unlimited && total >= opts.Limit {
 				break
 			}
 			task := p
@@ -177,6 +241,9 @@ func buildOne(ctx context.Context, client *hf.Client, opts BuildOpts, cat Catego
 			}
 		}
 	}
+
+	fmt.Fprintf(os.Stderr, "  [%s] done rows=%d filter_skip=%d dup_skip=%d\n",
+		cat.ID, total, filterSkipped, skippedDup)
 
 	wm := formatWatermark(maxLM)
 	_ = idx.SetMetadata("created_at", time.Now().UTC().Format(time.RFC3339))
@@ -217,4 +284,11 @@ func buildOne(ctx context.Context, client *hf.Client, opts BuildOpts, cat Catego
 		DBFilename: dbName,
 		Watermark:  wm,
 	}, nil
+}
+
+func limitLabel(n int) string {
+	if n <= 0 {
+		return "unlimited"
+	}
+	return strconv.Itoa(n)
 }

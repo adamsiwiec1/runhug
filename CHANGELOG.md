@@ -5,6 +5,15 @@ All notable user-facing changes to runhug-cli are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-09-14
+
+### Changed
+- Index pack builds no longer default-cap at 5000 rows; `--limit 0` / unset `RUNHUG_INDEX_LIMIT` means unlimited.
+- Pack builder filters Hub models to `likes >= 3` and `downloads >= 100` (configurable via `--min-likes` / `--min-downloads`), with early-stop when paging by downloads.
+
+### Added
+- `ListOpts.MinLikes` / `MinDownloads` with downloads-desc early exit when a whole page is below the download floor.
+
 ## [Unreleased]
 
 ### Added
