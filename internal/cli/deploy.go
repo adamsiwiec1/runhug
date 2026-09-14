@@ -21,6 +21,8 @@ func cmdDeploy(args []string) error {
 	fs := newFlagSet("deploy")
 	yes := fs.Bool("yes", false, "create without a prompt")
 	dry := fs.Bool("dry-run", false, "print the plan only")
+	estimate := fs.Bool("estimate", false, "print full approximate cost block on the plan")
+	fs.BoolVar(estimate, "e", false, "alias for --estimate")
 	gpu := fs.String("gpu", "", "serverless GPU pool (ADA_24, AMPERE_80, …)")
 	gpuCount := fs.Int("gpu-count", 0, "GPUs per worker (default: sized)")
 	maxLen := fs.Int("max-len", 8192, "MAX_MODEL_LEN")
@@ -138,7 +140,7 @@ func cmdDeploy(args []string) error {
 		Flashboot: strings.ToUpper(*flashboot),
 	}
 
-	printPlan(modelID, format, est, choice, req, env.HFToken != "")
+	printPlan(modelID, format, est, choice, req, env.HFToken != "", *estimate, *dry)
 
 	if *dry {
 		if *asJSON {
@@ -244,7 +246,7 @@ func inspectGPU(ctx context.Context, apiKey string, required float64, pool strin
 	return text, c, nil
 }
 
-func printPlan(modelID string, format hf.Format, est sizing.Estimate, c runpod.Choice, req runpod.CreateEndpointRequest, hasHF bool) {
+func printPlan(modelID string, format hf.Format, est sizing.Estimate, c runpod.Choice, req runpod.CreateEndpointRequest, hasHF bool, showEstimate, dryRun bool) {
 	heading(os.Stdout, "Plan")
 	printKV(os.Stdout, "model", bold(modelID))
 	fmt.Fprintf(os.Stdout, "  %s  %s", dim(padRight("format", 9)), format.Engine)
@@ -279,9 +281,13 @@ func printPlan(modelID string, format hf.Format, est sizing.Estimate, c runpod.C
 		printKV(os.Stdout, "hf_token", "set (not printed)")
 	}
 	fmt.Fprintln(os.Stdout)
-	fb := strings.EqualFold(req.Flashboot, "FLASHBOOT") || strings.EqualFold(req.Flashboot, "PRIORITY_FLASHBOOT")
-	cost := sizing.EstimateServerlessCost(c.HourlyUSD, est.WeightGB, c.GPUCount, idleSec, fb)
-	fmt.Fprintln(os.Stdout, bold(cost.FormatBlock(c.Pool.ID)))
+	if showEstimate {
+		fb := strings.EqualFold(req.Flashboot, "FLASHBOOT") || strings.EqualFold(req.Flashboot, "PRIORITY_FLASHBOOT")
+		cost := sizing.EstimateServerlessCost(c.HourlyUSD, est.WeightGB, c.GPUCount, idleSec, fb)
+		fmt.Fprintln(os.Stdout, bold(cost.FormatBlock(c.Pool.ID)))
+	} else if dryRun {
+		fmt.Fprintln(os.Stdout, dim("Tip: pass --estimate / -e for cold/warm/daily cost scenarios."))
+	}
 }
 
 var slugRe = regexp.MustCompile(`[^a-z0-9-]+`)

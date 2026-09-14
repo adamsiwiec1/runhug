@@ -201,6 +201,8 @@ func cmdRecommendGPU(args []string) error {
 	fs := newFlagSet("recommend-gpu")
 	gpuPool := fs.String("gpu", "", "force this Runpod GPU pool")
 	maxLen := fs.Int("max-len", 8192, "context length for VRAM estimate")
+	estimate := fs.Bool("estimate", false, "print full approximate cost block (cold/warm/daily scenarios)")
+	fs.BoolVar(estimate, "e", false, "alias for --estimate")
 	asJSON := fs.Bool("json", false, "print JSON")
 	if err := parseFlags(fs, args); err != nil {
 		return err
@@ -263,9 +265,11 @@ func cmdRecommendGPU(args []string) error {
 	printKV(os.Stdout, "gpu", adv.Text)
 	printKV(os.Stdout, "why", adv.Choice.Reason)
 	fmt.Fprintln(os.Stdout)
-	cost := sizing.EstimateServerlessCost(adv.Choice.HourlyUSD, adv.WeightGB, adv.Choice.GPUCount, 5, true)
-	fmt.Fprintln(os.Stdout, bold(cost.FormatBlock(adv.Choice.Pool.ID)))
-	fmt.Fprintln(os.Stdout)
+	if *estimate {
+		cost := sizing.EstimateServerlessCost(adv.Choice.HourlyUSD, adv.WeightGB, adv.Choice.GPUCount, 5, true)
+		fmt.Fprintln(os.Stdout, bold(cost.FormatBlock(adv.Choice.Pool.ID)))
+		fmt.Fprintln(os.Stdout)
+	}
 	// Also list a few larger/safer alternatives when live/offline catalog is available.
 	catalog := live
 	if len(catalog) == 0 {
@@ -273,7 +277,7 @@ func cmdRecommendGPU(args []string) error {
 	}
 	opts := runpod.FittingOptions(catalog, adv.RequiredGB, 5)
 	if len(opts) > 1 {
-		fmt.Fprintln(os.Stdout, bold("Other fitting pools"))
+		fmt.Fprintln(os.Stdout, bold("Other fitting pools")+"  "+dim("pass --estimate / -e for full cost scenarios"))
 		for i, pool := range opts {
 			tag := ""
 			if i == 0 {
@@ -281,11 +285,10 @@ func cmdRecommendGPU(args []string) error {
 			} else if pool.MemoryGB > opts[0].MemoryGB+0.01 {
 				tag = "  larger / safer"
 			}
-			c := sizing.EstimateServerlessCost(pool.PricePerHour, adv.WeightGB, 1, 5, true)
 			fmt.Fprintf(os.Stdout, "  %s  %s  %s%s\n",
 				cyan(fmt.Sprintf("%d)", i+1)),
 				bold(pool.ID),
-				dim(fmt.Sprintf("%.0f GB · $%.2f/hr · %s", pool.MemoryGB, pool.PricePerHour, c.CompactLine())),
+				dim(fmt.Sprintf("%.0f GB · $%.2f/hr · %s", pool.MemoryGB, pool.PricePerHour, poolStockLabel(pool))),
 				dim(tag),
 			)
 		}
@@ -293,7 +296,9 @@ func cmdRecommendGPU(args []string) error {
 	}
 	commands(os.Stdout, "Next:",
 		"runhug-cli inspect "+model.RepoID(),
+		"runhug-cli recommend gpu "+model.RepoID()+" --estimate",
 		"runhug-cli deploy "+model.RepoID()+" --dry-run",
+		"runhug-cli deploy "+model.RepoID()+" --dry-run --estimate",
 		"runhug-cli gpus --min-vram "+fmt.Sprintf("%.0f", adv.RequiredGB),
 	)
 	return nil
