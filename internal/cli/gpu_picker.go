@@ -95,6 +95,8 @@ func parseGPUPickKey(b []byte) (action gpuPickAction, jump int) {
 
 // applyGPUPickAction updates selection / estimate visibility.
 // Returns (selectedIndex, showEstimate, done, usedRecommended).
+// showEstimate is a sticky "user has requested estimate" flag (TTY prints
+// one-shot estimate lines on each e; it does not erase prior output).
 func applyGPUPickAction(action gpuPickAction, jump, selected, n int, showEst bool) (sel int, est bool, done, usedRecommended bool) {
 	sel, est = selected, showEst
 	if n <= 0 {
@@ -130,10 +132,6 @@ const (
 	gpuColPrice   = 6
 	gpuColStock   = 6
 	gpuColNote    = 12
-
-	// Fixed status frame (always redrawn). Estimate adds a stable block below.
-	gpuStatusLines   = 3
-	gpuEstimateLines = 3
 )
 
 func formatGPUPickHelp() string {
@@ -175,6 +173,7 @@ func formatGPUPickRow(i int, row gpuPickRow) string {
 }
 
 // formatGPUPickTable renders the static pool table (no per-row highlight, no estimate).
+// Uses bare \n; callers that write under term.MakeRaw must convert via writeRawCRLF.
 func formatGPUPickTable(rows []gpuPickRow) string {
 	if len(rows) == 0 {
 		return ""
@@ -189,10 +188,11 @@ func formatGPUPickTable(rows []gpuPickRow) string {
 	return b.String()
 }
 
-// formatGPUPickStatus is the fixed 3-line frame under the table (selection lives here).
-func formatGPUPickStatus(rows []gpuPickRow, selected int) string {
+// formatGPUPickSelection is a single short line rewritten in-place with \r+\033[K.
+// Kept well under 80 columns so it cannot wrap.
+func formatGPUPickSelection(rows []gpuPickRow, selected int) string {
 	if len(rows) == 0 {
-		return strings.Repeat("\n", gpuStatusLines-1) + "\n"
+		return "› —"
 	}
 	if selected < 0 {
 		selected = 0
@@ -200,67 +200,44 @@ func formatGPUPickStatus(rows []gpuPickRow, selected int) string {
 	if selected >= len(rows) {
 		selected = len(rows) - 1
 	}
-	row := rows[selected]
-	p := row.Pool
-	marker := "›"
-	detail := fmt.Sprintf("%s %s  %.0f GB  %s  $%.2f/hr  %s",
-		marker,
+	p := rows[selected].Pool
+	line := fmt.Sprintf("› %s · %.0fGB · %s · $%.2f/hr · %d/%d",
 		p.ID,
 		p.MemoryGB,
 		dash(p.ExampleGPU),
 		p.PricePerHour,
-		poolStockLabel(p),
+		selected+1,
+		len(rows),
 	)
 	if useColor() {
-		detail = cyan(detail)
+		return cyan(line)
 	}
-	note := row.Note
-	if note == "" {
-		note = "—"
-	}
-	pos := fmt.Sprintf("  %d of %d · %s", selected+1, len(rows), note)
-	help := "  " + formatGPUPickHelp()
-	return detail + "\n" + dim(pos) + "\n" + help + "\n"
+	return line
 }
 
-// formatGPUPickEstimate is a compact estimate block (exactly gpuEstimateLines lines).
-func formatGPUPickEstimate(row gpuPickRow, weightGB float64) string {
+// formatGPUPickEstimate returns two compact estimate lines (no trailing newline).
+func formatGPUPickEstimate(row gpuPickRow, weightGB float64) []string {
 	cost := sizing.EstimateServerlessCost(row.Pool.PricePerHour, weightGB, 1, 5, true)
 	line1 := "  " + cost.CompactLine()
 	warm := cost.DailyScenarioUSD(100, 0)
 	mixed := cost.DailyScenarioUSD(100, 0.10)
 	cold := cost.DailyScenarioUSD(100, 1)
 	line2 := fmt.Sprintf("  ~100 req/day  warm ≈ $%.4f · 10%% cold ≈ $%.4f · all-cold ≈ $%.4f", warm, mixed, cold)
-	line3 := "  " + dim("(e again to hide)")
-	// Pad/truncate to exactly gpuEstimateLines for stable clear.
-	lines := []string{line1, line2, line3}
-	for len(lines) < gpuEstimateLines {
-		lines = append(lines, "")
-	}
-	if len(lines) > gpuEstimateLines {
-		lines = lines[:gpuEstimateLines]
-	}
-	return strings.Join(lines, "\n") + "\n"
+	return []string{line1, line2}
 }
 
-func gpuFrameLines(showEstimate bool) int {
-	n := gpuStatusLines
-	if showEstimate {
-		n += gpuEstimateLines
-	}
-	return n
+// writeRawCRLF writes s to w, normalizing every newline to CRLF for raw TTY mode.
+// Bare LF in MakeRaw does not return the cursor, which staircases multi-line output.
+func writeRawCRLF(w io.Writer, s string) {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\n", "\r\n")
+	fmt.Fprint(w, s)
 }
 
-// redrawGPUPickFrame moves up by prevLines, clears, prints status (+ optional estimate).
-func redrawGPUPickFrame(w io.Writer, prevLines int, rows []gpuPickRow, selected int, showEst bool, weightGB float64) int {
-	if prevLines > 0 {
-		fmt.Fprintf(w, "\033[%dA\033[J", prevLines)
-	}
-	fmt.Fprint(w, formatGPUPickStatus(rows, selected))
-	if showEst && selected >= 0 && selected < len(rows) {
-		fmt.Fprint(w, formatGPUPickEstimate(rows[selected], weightGB))
-	}
-	return gpuFrameLines(showEst)
+// rewriteGPUPickSelection overwrites the current (last) line in-place.
+func rewriteGPUPickSelection(w io.Writer, rows []gpuPickRow, selected int) {
+	fmt.Fprint(w, "\r\033[K")
+	fmt.Fprint(w, formatGPUPickSelection(rows, selected))
 }
 
 // pickGPUPool runs the interactive TTY picker when possible; otherwise a plain numbered list.
@@ -330,41 +307,62 @@ func pickGPUPoolTTY(w io.Writer, rows []gpuPickRow, weightGB float64) (string, e
 	}
 	defer func() { _ = term.Restore(fd, old) }()
 
-	// Print the pool table once — never redrawn while cycling.
-	fmt.Fprint(w, formatGPUPickTable(rows))
-	fmt.Fprintln(w)
+	// Hide cursor while picking (restore on every exit path).
+	fmt.Fprint(w, "\033[?25l")
+	defer fmt.Fprint(w, "\033[?25h")
+
+	// Static block once: table + blank + help. Never redrawn; always CRLF in raw mode.
+	writeRawCRLF(w, formatGPUPickTable(rows))
+	writeRawCRLF(w, "\n")
+	writeRawCRLF(w, "  "+formatGPUPickHelp()+"\n")
 
 	selected := 0
 	showEst := false
-	prev := redrawGPUPickFrame(w, 0, rows, selected, showEst, weightGB)
+	lastEstPool := ""
+	// Selection is always the last line; cycle only \r-rewrites it.
+	fmt.Fprint(w, formatGPUPickSelection(rows, selected))
 
 	for {
 		key, err := readTTYKey(os.Stdin)
 		if err != nil {
-			fmt.Fprintln(w)
+			writeRawCRLF(w, "\n")
 			return "", err
 		}
 		action, jump := parseGPUPickKey(key)
 		if action == gpuPickNone {
 			continue
 		}
+
+		if action == gpuPickToggleEstimate {
+			// One-shot: append estimate below, then a fresh selection line so
+			// \r rewrite still targets the last line. Do not erase prior estimates.
+			showEst = true
+			row := rows[selected]
+			if row.Pool.ID != lastEstPool {
+				writeRawCRLF(w, "\n")
+				for _, line := range formatGPUPickEstimate(row, weightGB) {
+					writeRawCRLF(w, line+"\n")
+				}
+				lastEstPool = row.Pool.ID
+				fmt.Fprint(w, formatGPUPickSelection(rows, selected))
+			}
+			continue
+		}
+
 		var done, usedRec bool
 		selected, showEst, done, usedRec = applyGPUPickAction(action, jump, selected, len(rows), showEst)
 		if done {
-			_ = term.Restore(fd, old)
-			if prev > 0 {
-				fmt.Fprintf(w, "\033[%dA\033[J", prev)
-			}
+			writeRawCRLF(w, "\n")
 			chosen := rows[selected].Pool.ID
 			if usedRec {
-				fmt.Fprintln(w, green("✓")+"  "+dim("Using recommended GPU pool "+chosen))
+				writeRawCRLF(w, green("✓")+"  "+dim("Using recommended GPU pool "+chosen)+"\n")
 			} else {
-				fmt.Fprintln(w, green("✓")+"  "+dim("Using GPU pool "+chosen))
+				writeRawCRLF(w, green("✓")+"  "+dim("Using GPU pool "+chosen)+"\n")
 			}
-			fmt.Fprintln(w)
+			writeRawCRLF(w, "\n")
 			return chosen, nil
 		}
-		prev = redrawGPUPickFrame(w, prev, rows, selected, showEst, weightGB)
+		rewriteGPUPickSelection(w, rows, selected)
 	}
 }
 

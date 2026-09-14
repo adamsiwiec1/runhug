@@ -101,62 +101,86 @@ func TestFormatGPUPickTableStatic(t *testing.T) {
 	if strings.Contains(out, "Cost estimate") || strings.Contains(out, "daily scenarios") || strings.Contains(out, "CompactLine") {
 		t.Fatalf("table must not include estimates:\n%s", out)
 	}
-	// Help lives in the status frame, not the table.
+	// Help is printed separately under the table in TTY, not inside the table.
 	if strings.Contains(out, "↑/↓") {
-		t.Fatalf("help should be in status frame, not table:\n%s", out)
+		t.Fatalf("help should not be in table:\n%s", out)
 	}
 }
 
-func TestFormatGPUPickStatus(t *testing.T) {
+func TestFormatGPUPickSelection(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	rows := sampleGPURows()
-	out := formatGPUPickStatus(rows, 0)
-	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
-	if len(lines) != gpuStatusLines {
-		t.Fatalf("status lines=%d want %d\n%s", len(lines), gpuStatusLines, out)
+	out := formatGPUPickSelection(rows, 0)
+	if strings.Contains(out, "\n") {
+		t.Fatalf("selection must be a single line:\n%q", out)
 	}
-	if !strings.Contains(out, "›") || !strings.Contains(out, "ADA_24") {
-		t.Fatalf("status missing selection marker:\n%s", out)
+	if !strings.HasPrefix(out, "› ") {
+		t.Fatalf("expected › marker:\n%s", out)
 	}
-	if !strings.Contains(out, "1 of 3") || !strings.Contains(out, "recommended") {
-		t.Fatalf("status missing position/note:\n%s", out)
+	for _, want := range []string{"ADA_24", "24GB", "RTX 4090", "$0.44/hr", "1/3"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("selection missing %q:\n%s", want, out)
+		}
 	}
-	if !strings.Contains(out, "↑/↓") || !strings.Contains(out, "Enter") {
-		t.Fatalf("status missing help:\n%s", out)
+	// Must stay short enough not to wrap on 80-col terminals.
+	if len(out) > 72 {
+		t.Fatalf("selection too long (%d): %q", len(out), out)
 	}
-	out2 := formatGPUPickStatus(rows, 1)
-	if !strings.Contains(out2, "AMPERE_48") || !strings.Contains(out2, "2 of 3") {
-		t.Fatalf("status for row1:\n%s", out2)
+	if strings.Contains(out, "\033[7m") {
+		t.Fatalf("must not use reverse-video")
 	}
-	if strings.Contains(out2, "\033[7m") {
-		t.Fatalf("status must not use reverse-video")
+	out2 := formatGPUPickSelection(rows, 1)
+	for _, want := range []string{"AMPERE_48", "48GB", "A6000", "$0.79/hr", "2/3"} {
+		if !strings.Contains(out2, want) {
+			t.Fatalf("row1 selection missing %q:\n%s", want, out2)
+		}
 	}
 }
 
 func TestFormatGPUPickEstimateCompact(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	rows := sampleGPURows()
-	out := formatGPUPickEstimate(rows[1], 18)
-	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
-	if len(lines) != gpuEstimateLines {
-		t.Fatalf("estimate lines=%d want %d\n%s", len(lines), gpuEstimateLines, out)
+	lines := formatGPUPickEstimate(rows[1], 18)
+	if len(lines) != 2 {
+		t.Fatalf("estimate lines=%d want 2\n%v", len(lines), lines)
 	}
-	if !strings.Contains(out, "~/hr") && !strings.Contains(out, "/hr") {
-		t.Fatalf("expected CompactLine-style hint:\n%s", out)
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "~/hr") && !strings.Contains(joined, "/hr") {
+		t.Fatalf("expected CompactLine-style hint:\n%s", joined)
 	}
-	if strings.Contains(out, "Cost estimate for") || strings.Contains(out, "daily scenarios") || strings.Contains(out, "assumptions") {
-		t.Fatalf("must not use huge FormatBlock:\n%s", out)
+	if strings.Contains(joined, "Cost estimate for") || strings.Contains(joined, "daily scenarios") || strings.Contains(joined, "assumptions") {
+		t.Fatalf("must not use huge FormatBlock:\n%s", joined)
 	}
-	if !strings.Contains(out, "~100 req/day") {
-		t.Fatalf("expected short daily line:\n%s", out)
+	if !strings.Contains(joined, "~100 req/day") {
+		t.Fatalf("expected short daily line:\n%s", joined)
+	}
+	for _, line := range lines {
+		if strings.Contains(line, "\n") {
+			t.Fatalf("estimate line itself must not contain newline: %q", line)
+		}
 	}
 }
 
-func TestGPUFrameLinesStable(t *testing.T) {
-	if gpuFrameLines(false) != gpuStatusLines {
-		t.Fatalf("hidden est frame=%d", gpuFrameLines(false))
+func TestWriteRawCRLF(t *testing.T) {
+	var b strings.Builder
+	writeRawCRLF(&b, "a\nb\n")
+	if b.String() != "a\r\nb\r\n" {
+		t.Fatalf("got %q", b.String())
 	}
-	if gpuFrameLines(true) != gpuStatusLines+gpuEstimateLines {
-		t.Fatalf("shown est frame=%d", gpuFrameLines(true))
+	b.Reset()
+	writeRawCRLF(&b, "a\r\nb\n")
+	if b.String() != "a\r\nb\r\n" {
+		t.Fatalf("idempotent normalize got %q", b.String())
+	}
+}
+
+func TestFormatGPUPickHelpMentionsEstimate(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	h := formatGPUPickHelp()
+	if !strings.Contains(h, "e estimate") {
+		t.Fatalf("help should mention e: %q", h)
+	}
+	if !strings.Contains(h, "Enter") || !strings.Contains(h, "Esc") {
+		t.Fatalf("help missing Enter/Esc: %q", h)
 	}
 }

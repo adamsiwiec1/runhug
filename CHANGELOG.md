@@ -7,6 +7,11 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.4-beta.3] - 2026-09-14
+
+### Fixed
+- Wizard GPU picker TTY path no longer staircases under `term.MakeRaw`: all multi-line output uses `\r\n`; no cursor-up frame redraw. Static table + help once; only the single selection line is `\r`+`\033[K` rewritten. `e` appends a one-shot compact estimate then reprints the selection line (no erase/toggle clear).
+
 ## [0.1.4-beta.2] - 2026-09-14
 
 ### Fixed
