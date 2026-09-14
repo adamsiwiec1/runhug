@@ -157,7 +157,7 @@ func normalizeSearchOpts(opts *SearchOpts) error {
 		opts.Limit = 100
 	}
 	if opts.Task == "" {
-		opts.Task = "text-generation"
+		opts.Task = "any"
 	}
 	sortKey, err := NormalizeSort(opts.Sort)
 	if err != nil {

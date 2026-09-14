@@ -31,25 +31,30 @@ go build -o bin/runhug-cli ./cmd/runhug-cli
 runhug-cli init
 ```
 
-`init` installs a local runtime if needed (Ollama by default) and offers the
-**default local starter** **Qwen/Qwen2.5-1.5B-Instruct** (`qwen2.5:1.5b`) —
-small official Instruct chat model that fits a laptop. Enter to accept, or
-`n` to decline and search the Hub / pick something else (`--model`, `--search`).
+`init` sets up the **search NLP stack** (not a local chat model): detect Ollama
+and offer `ollama pull nomic-embed-text` for embedding rerank, or guide
+`connect hf` for Hugging Face Inference embeddings. Optionally refresh the
+local SQLite index (`update`). Search works without an embedder (lexical
+only); embeddings improve ranking.
 
 ```bash
 runhug-cli init --yes
-runhug-cli init --model qwen3:8b
-runhug-cli init --search "coding assistant" --pick 1
+runhug-cli connect hf
+runhug-cli update
+# optional local serve model (not required for search):
+runhug-cli init --model <ollama-tag-or-hub-id>
 ```
 
 ## Search
 
 ```bash
-runhug-cli search qwen
-runhug-cli search -q cybersec
+runhug-cli search -q "top penetration testing models" --limit 5
+runhug-cli search -q "animated cartoon generation models" --limit 5
+runhug-cli search -q "heretic uncensored image models" --limit 5
 runhug-cli search qwen --sort likes --limit 5
 runhug-cli search instruct --sort downloads --engine vllm
 runhug-cli search "instruct coder" --engine gguf --license apache-2.0
+runhug-cli search -q cybersec --keyword
 runhug-cli inspect Qwen/Qwen2.5-7B-Instruct
 ```
 
@@ -84,9 +89,12 @@ separate full-text index). After that recall, `--sort relevance` can
 re-rank the pool with embeddings: local Ollama `nomic-embed-text` if
 it is already pulled, otherwise Hugging Face Inference
 `sentence-transformers/all-MiniLM-L6-v2` when `HF_TOKEN` is set.
-`--semantic` is on when an embedder is available; `--no-semantic` keeps
-lexical scoring. Chat models such as Qwen2.5-1.5B-Instruct are not used
-as embedders.
+`--semantic` is on by default when an embedder is available; `--keyword` /
+`--no-semantic` keep lexical scoring only. No local chat model is required
+for search — chat completions are not used for ranking. Default Hub
+`pipeline_tag` is **auto** (image/cartoon/diffusion/audio intents map to a
+task; otherwise `any`), so queries are not forced onto `text-generation`
+instruct LLMs.
 
 ### Local index (not a Hub-wide vector DB)
 

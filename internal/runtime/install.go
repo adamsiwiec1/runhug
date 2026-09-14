@@ -100,9 +100,10 @@ func PrintConfig(w io.Writer, s Snapshot) {
 		fmt.Fprintf(w, "  %-10s %-12s %s\n", e.Kind, state, dash(e.Binary))
 	}
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "init (recommended runtime + default model)")
+	fmt.Fprintln(w, "init (search embedder + index)")
 	fmt.Fprintln(w, "  runhug-cli init")
-	fmt.Fprintln(w, "  runhug-cli init --model qwen3:8b")
+	fmt.Fprintln(w, "  runhug-cli init --yes")
+	fmt.Fprintln(w, "  runhug-cli connect hf")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "search Hugging Face")
 	fmt.Fprintln(w, "  runhug-cli search qwen --sort likes")

@@ -80,13 +80,13 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  runhug-cli <command> [flags]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, bold("Setup"))
-	fmt.Fprintln(w, "  init               Runtime + default local starter (Qwen2.5-1.5B); decline to search")
+	fmt.Fprintln(w, "  init               Search NLP setup (nomic-embed-text / connect hf + optional index)")
 	fmt.Fprintln(w, "  connect            Save Runpod API key (0600)")
 	fmt.Fprintln(w, "  connect hf         Save Hugging Face token (0600); aliases: login hf, hf login")
 	fmt.Fprintln(w, "  disconnect [hf]    Forget stored Runpod key or HF token")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, bold("Search & index"))
-	fmt.Fprintln(w, "  search [query]     Local SQLite index + Hub; optional embedding rerank")
+	fmt.Fprintln(w, "  search [query]     NLP search over Hub/index with embedding rerank (no local instruct model)")
 	fmt.Fprintln(w, "  inspect <model>    Hub card, params, VRAM estimate")
 	fmt.Fprintln(w, "  update             Refresh local model index from Hub")
 	fmt.Fprintln(w, "  update --cli       Print how to upgrade this CLI (go install / releases)")
@@ -106,9 +106,12 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  config get|set     Read/write no_color (and show paths)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, bold("Search stack (honest)"))
+	fmt.Fprintln(w, "  NLP / embeddings over Hub + SQLite index — not instruct-model re-rank.")
 	fmt.Fprintln(w, "  SQLite local model index (data/models.db or ~/.config/runhug-cli/models.db).")
-	fmt.Fprintln(w, "  Optional embedding rerank via Ollama nomic-embed-text or HF Inference.")
+	fmt.Fprintln(w, "  Embedding rerank via Ollama nomic-embed-text or HF Inference (optional).")
+	fmt.Fprintln(w, "  --semantic on by default; --keyword / --no-semantic for lexical-only.")
 	fmt.Fprintln(w, "  Not a Hub-wide vector database — update refreshes the local index.")
+	fmt.Fprintln(w, "  No local instruct model required for search.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, bold("Environment"))
 	fmt.Fprintln(w, "  HF_TOKEN           Wins over stored hf.token (gated Hub / embeddings)")
@@ -116,7 +119,6 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  RUNHUG_CONFIG      Override registry path (RVP_CONFIG still accepted)")
 	fmt.Fprintln(w, "  NO_COLOR           Disable ANSI colors (or: config set no_color true)")
 }
-
 
 func newFlagSet(name string) *flag.FlagSet {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)

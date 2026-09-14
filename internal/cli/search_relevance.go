@@ -55,10 +55,11 @@ func searchModels(ctx context.Context, req searchRequest) ([]hf.Model, searchMet
 		RankSource: "hub",
 		Queries:    hf.HubSearchQueries(req.Query),
 	}
+	task := hf.ResolveTask(req.Task, req.Query)
 	models, note, err := searchRanked(ctx, client, hf.SearchOpts{
 		Query:   req.Query,
 		Author:  req.Author,
-		Task:    req.Task,
+		Task:    task,
 		Library: req.Library,
 		Filter:  req.Filter,
 		License: req.License,
@@ -103,11 +104,15 @@ func searchIndexAtPath(ctx context.Context, req searchRequest, sortKey string, p
 		q = strings.TrimSpace(req.Query + " " + strings.Join(extra, " "))
 	}
 
+	pipeline := req.Task
+	if pipeline == "any" || pipeline == "auto" || pipeline == "" {
+		pipeline = ""
+	}
 	filters := index.SearchFilters{
 		Author:      req.Author,
 		Library:     req.Library,
 		License:     req.License,
-		PipelineTag: req.Task,
+		PipelineTag: pipeline,
 		Engine:      req.Engine,
 		Sort:        sortKey,
 		Limit:       100,

@@ -53,7 +53,7 @@ func TestPrintUsageIncludesGroupedHelp(t *testing.T) {
 		"Config",
 		"update",
 		"connect hf",
-		"default local starter",
+		"Search NLP setup",
 		"SQLite",
 	} {
 		if !strings.Contains(out, want) {

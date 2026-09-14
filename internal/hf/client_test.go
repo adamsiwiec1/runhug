@@ -26,8 +26,11 @@ func TestSearchQuery(t *testing.T) {
 	if len(models) != 1 || models[0].RepoID() != "Qwen/Qwen2.5-7B-Instruct" {
 		t.Fatalf("%+v", models)
 	}
-	if got == "" || !containsAll(got, "search=qwen", "pipeline_tag=text-generation", "limit=5") {
+	if got == "" || !containsAll(got, "search=qwen", "limit=5") {
 		t.Fatalf("query %s", got)
+	}
+	if contains(got, "pipeline_tag=") {
+		t.Fatalf("default task=any must omit pipeline_tag: %s", got)
 	}
 }
 

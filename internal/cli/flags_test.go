@@ -43,17 +43,19 @@ func TestUsageMentionsSearch(t *testing.T) {
 		"update",
 		"config",
 		"SQLite",
-		"default local starter",
+		"Search NLP setup",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("usage missing %q\n%s", want, s)
 		}
 	}
-	for _, drop := range []string{"quickstart", "chat"} {
+	for _, drop := range []string{"quickstart", "Qwen2.5-1.5B", "default local starter"} {
 		if strings.Contains(s, drop) {
 			t.Fatalf("usage should not mention %q\n%s", drop, s)
 		}
 	}
+	// "chat" as a product command must stay removed (see TestRemovedCommands).
+
 }
 
 func TestRemovedCommands(t *testing.T) {

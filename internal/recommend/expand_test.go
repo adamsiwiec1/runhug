@@ -7,7 +7,7 @@ import (
 )
 
 func TestExpandHeuristics(t *testing.T) {
-	ex := Expand(context.Background(), "coding assistant on a laptop", 8, nil)
+	ex := Expand(context.Background(), "coding assistant on a laptop", 8)
 	if ex.Source != "heuristics" {
 		t.Fatalf("source %s", ex.Source)
 	}
@@ -26,7 +26,7 @@ func TestExpandHeuristics(t *testing.T) {
 }
 
 func TestExpandDistinctiveTerms(t *testing.T) {
-	ex := Expand(context.Background(), "chat heretic cybersecurity", 8, nil)
+	ex := Expand(context.Background(), "chat heretic cybersecurity", 8)
 	if ex.Source != "heuristics" {
 		t.Fatalf("source %s", ex.Source)
 	}
@@ -80,7 +80,7 @@ func TestExtractDistinctiveTokens(t *testing.T) {
 }
 
 func TestExpandSingleWordHeretic(t *testing.T) {
-	ex := Expand(context.Background(), "heretic", 8, nil)
+	ex := Expand(context.Background(), "heretic", 8)
 	t.Logf("Queries = %+v", ex.Queries)
 	t.Logf("Intent.Query = %q", ex.Intent.Query)
 	found := false
@@ -94,13 +94,3 @@ func TestExpandSingleWordHeretic(t *testing.T) {
 	}
 }
 
-func TestRerankNoLLM(t *testing.T) {
-	ids := []string{"a/b", "c/d"}
-	got, _, err := Rerank(context.Background(), "code", ids, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got[0] != "a/b" || got[1] != "c/d" {
-		t.Fatalf("%v", got)
-	}
-}

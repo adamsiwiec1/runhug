@@ -17,13 +17,16 @@ runhug-cli list
 runhug-cli proxy
 ```
 
-`init` recommends **Qwen/Qwen2.5-1.5B-Instruct** to run locally. Say no and
-it lets you search the Hub, or pass `--model` / `--search`.
+`init` sets up search NLP: Ollama `nomic-embed-text` and/or `connect hf`
+for embeddings, plus an optional local index refresh. No local chat model
+is required for search. Optional `--model` / `--search` still installs a
+local serve model if you want one.
 
 The Hub has no public semantic model-search API (`GET /api/models?search=`
-is lexical). `search` can re-rank the candidate pool with local Ollama
-`nomic-embed-text` or Hugging Face Inference embeddings when `HF_TOKEN`
-is set (`--no-semantic` to skip).
+is lexical). `search` re-ranks the candidate pool with local Ollama
+`nomic-embed-text` or Hugging Face Inference embeddings when available
+(`--keyword` / `--no-semantic` to skip). Default task is auto/`any` so
+image and specialty queries are not forced onto text-generation LLMs.
 
 `connect` prints the Runpod API keys URL
 ([https://console.runpod.io/user/credentials?tab=api-key](https://console.runpod.io/user/credentials?tab=api-key);

@@ -121,7 +121,7 @@ func (s *replSession) handleCommand(line string) error {
 
 func (s *replSession) cmdHelp() error {
 	fmt.Fprintln(os.Stdout, "Available commands:")
-	fmt.Fprintln(os.Stdout, "  "+cyan("search -q \"query\"")+"   Search id/tags/description; semantic rank when nomic-embed-text or HF_TOKEN (--engine vllm|gguf, --license, --sort likes|downloads, --no-semantic)")
+	fmt.Fprintln(os.Stdout, "  "+cyan("search -q \"query\"")+"   NLP search (id/tags/description + embedding rerank); no local chat model (--engine, --license, --sort, --keyword/--no-semantic)")
 	fmt.Fprintln(os.Stdout, "  "+cyan("copy N")+"             Copy model id from row N of last search")
 	fmt.Fprintln(os.Stdout, "  "+cyan("inspect <model>")+"    Show model details and VRAM estimates")
 	fmt.Fprintln(os.Stdout, "  "+cyan("deploy <model>")+"     Deploy model to Runpod serverless")
@@ -139,7 +139,7 @@ func (s *replSession) cmdSearchREPL(args []string) error {
 	fs.StringVar(&query, "query", "", "search query")
 	fs.StringVar(&query, "q", "", "search query (shorthand)")
 	author := fs.String("author", "", "filter by Hugging Face org or user")
-	task := fs.String("task", "text-generation", "pipeline_tag (text-generation, any, …)")
+	task := fs.String("task", "auto", "pipeline_tag: auto (detect image/audio/… else any), any, text-generation, …")
 	library := fs.String("library", "", "library filter (transformers, …)")
 	filter := fs.String("filter", "", "extra Hub tag filter (safetensors, …)")
 	license := fs.String("license", "", "license filter (apache-2.0, mit, …)")
@@ -148,6 +148,7 @@ func (s *replSession) cmdSearchREPL(args []string) error {
 	limit := fs.Int("limit", 15, "max results (1-100)")
 	semanticOn := fs.Bool("semantic", true, "rerank with embeddings when an embedder is available")
 	noSemantic := fs.Bool("no-semantic", false, "disable embedding rerank")
+	keyword := fs.Bool("keyword", false, "alias for --no-semantic (lexical-only)")
 	wordWrap, ww := addWordWrapFlags(fs)
 
 	if err := parseFlags(fs, args); err != nil {
@@ -159,6 +160,7 @@ func (s *replSession) cmdSearchREPL(args []string) error {
 	if query == "" {
 		return fmt.Errorf("usage: search -q <query>   (or: search <query>)")
 	}
+	resolvedTask := hf.ResolveTask(*task, query)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -166,14 +168,14 @@ func (s *replSession) cmdSearchREPL(args []string) error {
 	models, meta, err := searchModels(ctx, searchRequest{
 		Query:           query,
 		Author:          *author,
-		Task:            *task,
+		Task:            resolvedTask,
 		Library:         *library,
 		Filter:          *filter,
 		License:         *license,
 		Engine:          *engine,
 		Sort:            *sort,
 		Limit:           *limit,
-		DisableSemantic: !*semanticOn || *noSemantic,
+		DisableSemantic: !*semanticOn || *noSemantic || *keyword,
 	})
 	if err != nil {
 		return err
