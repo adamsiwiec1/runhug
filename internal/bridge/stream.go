@@ -96,8 +96,10 @@ func (s *StreamState) HandleOpenAIChunk(w io.Writer, data string) error {
 		ID      string `json:"id"`
 		Choices []struct {
 			Delta struct {
-				Content   *string `json:"content"`
-				ToolCalls []struct {
+				Content          *string `json:"content"`
+				Reasoning        string  `json:"reasoning"`
+				ReasoningContent string  `json:"reasoning_content"`
+				ToolCalls        []struct {
 					Index    int    `json:"index"`
 					ID       string `json:"id"`
 					Type     string `json:"type"`
@@ -124,15 +126,27 @@ func (s *StreamState) HandleOpenAIChunk(w io.Writer, data string) error {
 		return nil
 	}
 	ch := chunk.Choices[0]
-	if ch.Delta.Content != nil && *ch.Delta.Content != "" {
+	// vLLM REASONING_PARSER models stream into reasoning / reasoning_content with
+	// empty content; surface that as Anthropic text so Claude Code is not blank.
+	text := ""
+	if ch.Delta.Content != nil {
+		text = *ch.Delta.Content
+	}
+	if text == "" {
+		text = ch.Delta.Reasoning
+	}
+	if text == "" {
+		text = ch.Delta.ReasoningContent
+	}
+	if text != "" {
 		if err := s.ensureTextStart(w); err != nil {
 			return err
 		}
-		s.OutputChars += len(*ch.Delta.Content)
+		s.OutputChars += len(text)
 		if err := s.writeEvent(w, "content_block_delta", map[string]any{
 			"type":  "content_block_delta",
 			"index": s.TextIndex,
-			"delta": map[string]any{"type": "text_delta", "text": *ch.Delta.Content},
+			"delta": map[string]any{"type": "text_delta", "text": text},
 		}); err != nil {
 			return err
 		}

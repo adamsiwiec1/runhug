@@ -111,9 +111,11 @@ type openaiResp struct {
 		Index        int    `json:"index"`
 		FinishReason string `json:"finish_reason"`
 		Message      struct {
-			Role      string           `json:"role"`
-			Content   *string          `json:"content"`
-			ToolCalls []openaiToolCall `json:"tool_calls,omitempty"`
+			Role             string           `json:"role"`
+			Content          *string          `json:"content"`
+			Reasoning        string           `json:"reasoning"`
+			ReasoningContent string           `json:"reasoning_content"`
+			ToolCalls        []openaiToolCall `json:"tool_calls,omitempty"`
 		} `json:"message"`
 	} `json:"choices"`
 	Usage *struct {
@@ -460,8 +462,18 @@ func openaiToAnthropic(or openaiResp, anthropicModel string) anthropicResp {
 	}
 	ch := or.Choices[0]
 	ar.StopReason = mapFinishReason(ch.FinishReason)
-	if ch.Message.Content != nil && *ch.Message.Content != "" {
-		ar.Content = append(ar.Content, anthropicBlock{Type: "text", Text: *ch.Message.Content})
+	text := ""
+	if ch.Message.Content != nil {
+		text = *ch.Message.Content
+	}
+	if text == "" {
+		text = ch.Message.Reasoning
+	}
+	if text == "" {
+		text = ch.Message.ReasoningContent
+	}
+	if text != "" {
+		ar.Content = append(ar.Content, anthropicBlock{Type: "text", Text: text})
 	}
 	for _, tc := range ch.Message.ToolCalls {
 		input := json.RawMessage([]byte("{}"))

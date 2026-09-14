@@ -102,9 +102,9 @@ func cmdDeploy(args []string) error {
 		workerEnv["HF_TOKEN"] = env.HFToken
 	}
 	if !*noFamily {
-		for k, v := range family.EnvFor(modelID) {
-			workerEnv[k] = v
-		}
+		// Match family from repo id plus Hub base_model / tags / arch so fine-tunes
+		// like Qwythos (Qwen3.5 base, no "qwen" in the name) still get tool env.
+		workerEnv = family.Apply(modelID, workerEnv, model.FamilyHints()...)
 	}
 	q := *quant
 	if q == "" {

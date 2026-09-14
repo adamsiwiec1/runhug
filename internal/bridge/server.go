@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -172,16 +173,19 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 		modelForResp = dm
 	}
 
+	hadTools := openaiBodyHasTools(openaiBody)
 	upRes, err := s.doChatCompletions(r.Context(), openaiBody)
 	if err != nil {
 		anthropicHTTPError(w, http.StatusBadGateway, "api_error", "upstream: "+err.Error())
 		return
 	}
+	retriedSansTools := false
 	// worker-vllm often 500s on tools unless ENABLE_AUTO_TOOL_CHOICE + TOOL_CALL_PARSER
 	// are configured (and some models still lack tool support). Retry once without tools.
-	if upRes.StatusCode >= 500 && openaiBodyHasTools(openaiBody) {
+	if upRes.StatusCode >= 500 && hadTools {
 		_ = upRes.Body.Close()
 		stripped := stripTools(openaiBody)
+		retriedSansTools = true
 		fmt.Fprintln(os.Stderr, "runhug bridge: upstream rejected tools (HTTP 5xx); retrying without tools/tool_choice")
 		upRes, err = s.doChatCompletions(r.Context(), stripped)
 		if err != nil {
@@ -206,17 +210,9 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ct := upRes.Header.Get("Content-Type")
-	if areq.Stream || strings.Contains(ct, "text/event-stream") {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.WriteHeader(http.StatusOK)
-		flusher, _ := w.(http.Flusher)
-		bw := &flushWriter{w: w, f: flusher}
-		if err := PipeOpenAISSE(upRes.Body, bw, modelForResp); err != nil {
-			// Best-effort; headers already sent.
-			return
-		}
+	wantStream := areq.Stream || strings.Contains(ct, "text/event-stream")
+	if wantStream {
+		s.serveStream(w, r, upRes, modelForResp, openaiBody, hadTools, retriedSansTools)
 		return
 	}
 
@@ -233,6 +229,92 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(out)
+}
+
+// serveStream pipes OpenAI SSE → Anthropic SSE.
+//
+// When tools were present and we have not yet stripped them, peek until the
+// first non-empty delta (content / reasoning / tool_calls) or EOF. Empty 200
+// streams still trigger a no-tools retry (same fallback as HTTP 5xx). A live
+// reasoning stream is NOT fully buffered — that held Claude on "Embellishing"
+// until max_tokens completed, with no Anthropic bytes flushed.
+func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, upRes *http.Response, modelForResp string, originalBody []byte, hadTools, retriedSansTools bool) {
+	var src io.Reader = upRes.Body
+	if hadTools && !retriedSansTools {
+		prefix, rest, empty, err := peekOpenAISSE(r.Context(), upRes.Body)
+		if err != nil {
+			anthropicHTTPError(w, http.StatusBadGateway, "api_error", "read upstream stream: "+err.Error())
+			return
+		}
+		if empty {
+			stripped := stripTools(originalBody)
+			fmt.Fprintln(os.Stderr, "runhug bridge: upstream stream empty with tools; retrying without tools/tool_choice")
+			up2, err := s.doChatCompletions(r.Context(), stripped)
+			if err != nil {
+				anthropicHTTPError(w, http.StatusBadGateway, "api_error", "upstream: "+err.Error())
+				return
+			}
+			defer up2.Body.Close()
+			if up2.StatusCode < 200 || up2.StatusCode >= 300 {
+				ub, _ := io.ReadAll(io.LimitReader(up2.Body, 1<<20))
+				msg := strings.TrimSpace(string(ub))
+				if len(msg) > 800 {
+					msg = msg[:800] + "…"
+				}
+				anthropicHTTPError(w, up2.StatusCode, "api_error", fmt.Sprintf("upstream HTTP %d after tools strip: %s", up2.StatusCode, msg))
+				return
+			}
+			prefix, rest, empty, err = peekOpenAISSE(r.Context(), up2.Body)
+			if err != nil {
+				anthropicHTTPError(w, http.StatusBadGateway, "api_error", "read upstream stream: "+err.Error())
+				return
+			}
+			retriedSansTools = true
+		}
+		if empty {
+			anthropicHTTPError(w, http.StatusBadGateway, "api_error",
+				"upstream returned empty stream (no content or tool_calls); refusing empty Anthropic SSE")
+			return
+		}
+		if rest != nil {
+			src = io.MultiReader(bytes.NewReader(prefix), rest)
+		} else {
+			src = bytes.NewReader(prefix)
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+	flusher, _ := w.(http.Flusher)
+	bw := &flushWriter{w: w, f: flusher}
+	_ = PipeOpenAISSE(src, bw, modelForResp)
+}
+
+// peekOpenAISSE reads OpenAI SSE until a non-empty delta or EOF.
+// prefix is bytes already consumed; rest is the unread remainder (nil on EOF).
+func peekOpenAISSE(ctx context.Context, body io.Reader) (prefix []byte, rest io.Reader, empty bool, err error) {
+	br := bufio.NewReaderSize(body, 64*1024)
+	var buf bytes.Buffer
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, false, err
+		}
+		line, rerr := br.ReadBytes('\n')
+		if len(line) > 0 {
+			buf.Write(line)
+		}
+		if rerr != nil {
+			if rerr == io.EOF {
+				return buf.Bytes(), nil, openAIStreamEmpty(buf.Bytes()), nil
+			}
+			return nil, nil, false, rerr
+		}
+		if len(bytes.TrimRight(line, "\r\n")) == 0 && !openAIStreamEmpty(buf.Bytes()) {
+			return buf.Bytes(), br, false, nil
+		}
+	}
 }
 
 func (s *Server) handleCountTokens(w http.ResponseWriter, r *http.Request) {
@@ -314,6 +396,120 @@ func stripTools(openaiBody []byte) []byte {
 		return openaiBody
 	}
 	return out
+}
+
+// openAIStreamEmpty reports whether an OpenAI chat.completion SSE body produced no
+// assistant text and no tool_calls (the blank stream Claude Code shows as "Sautéed").
+func openAIStreamEmpty(sse []byte) bool {
+	if len(bytes.TrimSpace(sse)) == 0 {
+		return true
+	}
+	// Non-SSE JSON error / empty completion also counts as empty for our guard.
+	trim := bytes.TrimSpace(sse)
+	if len(trim) > 0 && trim[0] == '{' {
+		var probe struct {
+			Choices []struct {
+				Message struct {
+					Content          any `json:"content"`
+					Reasoning        any `json:"reasoning"`
+					ReasoningContent any `json:"reasoning_content"`
+					ToolCalls        any `json:"tool_calls"`
+				} `json:"message"`
+				Delta struct {
+					Content          any `json:"content"`
+					Reasoning        any `json:"reasoning"`
+					ReasoningContent any `json:"reasoning_content"`
+					ToolCalls        any `json:"tool_calls"`
+				} `json:"delta"`
+			} `json:"choices"`
+			Error any `json:"error"`
+		}
+		if json.Unmarshal(trim, &probe) == nil {
+			if probe.Error != nil {
+				return true
+			}
+			if len(probe.Choices) == 0 {
+				return true
+			}
+			ch := probe.Choices[0]
+			if hasNonEmptyAny(ch.Message.Content) || hasNonEmptyAny(ch.Message.ToolCalls) ||
+				hasNonEmptyAny(ch.Message.Reasoning) || hasNonEmptyAny(ch.Message.ReasoningContent) ||
+				hasNonEmptyAny(ch.Delta.Content) || hasNonEmptyAny(ch.Delta.ToolCalls) ||
+				hasNonEmptyAny(ch.Delta.Reasoning) || hasNonEmptyAny(ch.Delta.ReasoningContent) {
+				return false
+			}
+			return true
+		}
+	}
+	sc := bufio.NewScanner(bytes.NewReader(sse))
+	sc.Buffer(make([]byte, 0, 64*1024), 4<<20)
+	for sc.Scan() {
+		line := sc.Text()
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content          *string `json:"content"`
+					Reasoning        string  `json:"reasoning"`
+					ReasoningContent string  `json:"reasoning_content"`
+					ToolCalls        []any   `json:"tool_calls"`
+				} `json:"delta"`
+				Message struct {
+					Content          any `json:"content"`
+					Reasoning        any `json:"reasoning"`
+					ReasoningContent any `json:"reasoning_content"`
+					ToolCalls        any `json:"tool_calls"`
+				} `json:"message"`
+			} `json:"choices"`
+			Error any `json:"error"`
+		}
+		if json.Unmarshal([]byte(data), &chunk) != nil {
+			continue
+		}
+		if chunk.Error != nil {
+			continue
+		}
+		for _, ch := range chunk.Choices {
+			if ch.Delta.Content != nil && *ch.Delta.Content != "" {
+				return false
+			}
+			if ch.Delta.Reasoning != "" || ch.Delta.ReasoningContent != "" {
+				return false
+			}
+			if len(ch.Delta.ToolCalls) > 0 {
+				return false
+			}
+			if hasNonEmptyAny(ch.Message.Content) || hasNonEmptyAny(ch.Message.ToolCalls) ||
+				hasNonEmptyAny(ch.Message.Reasoning) || hasNonEmptyAny(ch.Message.ReasoningContent) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func hasNonEmptyAny(v any) bool {
+	switch t := v.(type) {
+	case nil:
+		return false
+	case string:
+		return strings.TrimSpace(t) != ""
+	case []any:
+		return len(t) > 0
+	default:
+		b, err := json.Marshal(t)
+		if err != nil {
+			return false
+		}
+		s := strings.TrimSpace(string(b))
+		return s != "" && s != "null" && s != "[]" && s != `""`
+	}
 }
 
 func openaiBodyHasTools(body []byte) bool {
