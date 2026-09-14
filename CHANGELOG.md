@@ -7,6 +7,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.4-beta.2] - 2026-09-14
+
 ### Fixed
 - Wizard GPU picker no longer full-table redraws on cycle (row wrap / reverse-video width / estimate height broke cursor math). Table prints once; a fixed status frame under it is the only redrawn region. Soft cyan marker on the status line (no reverse-video); `e` toggles a compact estimate (`CompactLine` + short daily line).
 

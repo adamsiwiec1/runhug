@@ -20,7 +20,7 @@ go install github.com/adamsiwiec1/runhug-cli/cmd/runhug-cli@latest
 Beta builds use a `-beta.N` tag; `@latest` stays on the last stable. Install a beta with the exact tag (or `@main` for tip):
 
 ```bash
-go install github.com/adamsiwiec1/runhug-cli/cmd/runhug-cli@v0.1.4-beta.1
+go install github.com/adamsiwiec1/runhug-cli/cmd/runhug-cli@v0.1.4-beta.2
 go install github.com/adamsiwiec1/runhug-cli/cmd/runhug-cli@main
 ```
 
