@@ -29,8 +29,9 @@ func cmdSearch(args []string) error {
 	semanticOn := fs.Bool("semantic", true, "rerank with embeddings when nomic-embed-text (Ollama) or HF Inference is available")
 	noSemantic := fs.Bool("no-semantic", false, "disable embedding rerank (lexical Hub/index search only)")
 	keyword := fs.Bool("keyword", false, "alias for --no-semantic (lexical-only)")
-	wordWrap, ww := addWordWrapFlags(fs)
+	wrap, wordWrap, ww := addWrapFlags(fs)
 	asJSON := fs.Bool("json", false, "print JSON")
+	copyIdx := fs.Int("copy", 0, "copy MODEL id for this 1-based row to the clipboard")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
@@ -61,13 +62,23 @@ func cmdSearch(args []string) error {
 		return writeJSON(models)
 	}
 	printHubResults(os.Stdout, hubView{
-		Query:    query,
-		Models:   models,
-		Sort:     *sort,
-		Limit:    *limit,
-		Command:  quotedCmd("search", query),
-		WordWrap: *wordWrap || *ww,
+		Query:     query,
+		Models:    models,
+		Sort:      *sort,
+		Limit:     *limit,
+		Command:   quotedCmd("search", query),
+		WrapWidth: resolveWrapWidth(*wrap, *wordWrap, *ww),
 	})
+	if *copyIdx > 0 {
+		if *copyIdx > len(models) {
+			return fmt.Errorf("--copy %d out of range (1-%d)", *copyIdx, len(models))
+		}
+		id := models[*copyIdx-1].RepoID()
+		if err := copyToClipboard(id); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "%s  %s\n", green("copied"), id)
+	}
 	return nil
 }
 
@@ -88,20 +99,21 @@ func searchAndPrint(query string, opts hubOpts) error {
 		return err
 	}
 	printHubResults(os.Stdout, hubView{
-		Query:    query,
-		Models:   models,
-		Sort:     opts.Sort,
-		Limit:    opts.Limit,
-		Command:  opts.Command,
-		WordWrap: opts.WordWrap,
+		Query:     query,
+		Models:    models,
+		Sort:      opts.Sort,
+		Limit:     opts.Limit,
+		Command:   opts.Command,
+		WrapWidth: opts.WrapWidth,
 	})
 	return nil
 }
 
-func addWordWrapFlags(fs *flag.FlagSet) (wordWrap, ww *bool) {
-	wordWrap = fs.Bool("word-wrap", false, "print full MODEL names (no ellipsis)")
-	ww = fs.Bool("ww", false, "same as --word-wrap")
-	return wordWrap, ww
+func addWrapFlags(fs *flag.FlagSet) (wrap, wordWrap, ww *int) {
+	wrap = fs.Int("wrap", 0, "wrap MODEL names at N runes (0=ellipsis truncate; try 28)")
+	wordWrap = fs.Int("word-wrap", 0, "alias for --wrap")
+	ww = fs.Int("ww", 0, "alias for --wrap (e.g. -ww 28)")
+	return wrap, wordWrap, ww
 }
 
 func searchHub(query, sort, task, filter string, limit int) ([]hf.Model, error) {

@@ -7,6 +7,7 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+- Restored search table **ACTIONS** column (🔗 OSC-8 Hub link, 📋 plain) and footer hint for `copy N` / `search --copy N`.
 - Search is NLP/embeddings-only: removed local chat re-rank (`localllm` / `recommend.Rerank` chat path).
 - `init` sets up nomic-embed-text / `connect hf` + optional index (no Qwen chat starter).
 - Default Hub task is `auto`/`any` with image/audio intent detection; `--keyword` aliases `--no-semantic`.
@@ -27,8 +28,10 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   wins if both are set). Search matches model card descriptions as well
   as repo id/tags, and expands a small alias map (`hacking` → `pentest`,
   …) as extra Hub `search=` calls before local scoring.
-- `search --word-wrap` / `-ww` prints full MODEL names (default still
-  ellipsizes so 15–100 rows stay aligned).
+- `search --wrap N` / `--word-wrap N` / `-ww N` wraps MODEL names at N
+  runes across multiple lines (clamped 12–80; 0 or omitted = ellipsis
+  truncate at 48). Other columns stay on the first line only.
+- `search --copy N` copies the MODEL id for row N to the clipboard.
 - Semantic rerank of that candidate pool when an embedder is available:
   local Ollama `nomic-embed-text` (or similar), else Hugging Face Inference
   `sentence-transformers/all-MiniLM-L6-v2` if `HF_TOKEN` is set. The Hub

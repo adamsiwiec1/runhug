@@ -149,7 +149,7 @@ func (s *replSession) cmdSearchREPL(args []string) error {
 	semanticOn := fs.Bool("semantic", true, "rerank with embeddings when an embedder is available")
 	noSemantic := fs.Bool("no-semantic", false, "disable embedding rerank")
 	keyword := fs.Bool("keyword", false, "alias for --no-semantic (lexical-only)")
-	wordWrap, ww := addWordWrapFlags(fs)
+	wrap, wordWrap, ww := addWrapFlags(fs)
 
 	if err := parseFlags(fs, args); err != nil {
 		return err
@@ -192,7 +192,7 @@ func (s *replSession) cmdSearchREPL(args []string) error {
 		Command:    quotedSearchCmd(query),
 		RankSource: meta.RankSource,
 		Queries:    meta.Queries,
-		WordWrap:   *wordWrap || *ww,
+		WrapWidth:  resolveWrapWidth(*wrap, *wordWrap, *ww),
 	})
 
 	return nil

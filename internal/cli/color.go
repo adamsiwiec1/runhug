@@ -112,10 +112,27 @@ func truncateRunes(s string, n int) string {
 	return string(r[:n-1]) + "…"
 }
 
-// displayModel ellipsizes repo ids for aligned Hub tables unless --word-wrap/-ww.
-func displayModel(s string, n int, wrap bool) string {
-	if wrap {
-		return s
+// clampWrapWidth returns 0 (ellipsis truncate) or a wrap width in [12, 80].
+func clampWrapWidth(n int) int {
+	if n <= 0 {
+		return 0
 	}
-	return truncateRunes(s, n)
+	if n < 12 {
+		return 12
+	}
+	if n > 80 {
+		return 80
+	}
+	return n
+}
+
+// resolveWrapWidth picks the largest positive wrap width from flag values.
+func resolveWrapWidth(vals ...int) int {
+	n := 0
+	for _, v := range vals {
+		if v > n {
+			n = v
+		}
+	}
+	return clampWrapWidth(n)
 }

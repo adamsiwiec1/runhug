@@ -65,10 +65,10 @@ func TestSearchHelpMentionsQueryAndDescriptions(t *testing.T) {
 	_ = fs.Bool("semantic", true, "rerank with embeddings when nomic-embed-text (Ollama) or HF Inference is available")
 	_ = fs.Bool("no-semantic", false, "disable embedding rerank (lexical Hub search only)")
 	_ = fs.Bool("keyword", false, "alias for --no-semantic (lexical-only)")
-	addWordWrapFlags(fs)
+	addWrapFlags(fs)
 	fs.PrintDefaults()
 	s := buf.String()
-	for _, want := range []string{"-q", "-query", "description", "positional", "semantic", "nomic-embed-text", "no-semantic", "keyword", "word-wrap", "-ww"} {
+	for _, want := range []string{"-q", "-query", "description", "positional", "semantic", "nomic-embed-text", "no-semantic", "keyword", "wrap", "word-wrap", "-ww"} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("search -h missing %q\n%s", want, s)
 		}
@@ -104,41 +104,89 @@ func TestPrintHubResultsNextUsesFullID(t *testing.T) {
 	}
 }
 
-func TestPrintHubResultsWordWrapShowsFullModel(t *testing.T) {
+func TestPrintHubResultsWrapsOnlyModel(t *testing.T) {
 	long := "org-with-a-very-long-name/model-with-an-extremely-long-identifier-that-exceeds-forty-eight"
 	trunc := truncateRunes(long, 48)
-	m := []hf.Model{{ID: long, Likes: 1, Downloads: 1, Tags: []string{"safetensors"}}}
+	m := []hf.Model{{ID: long, Likes: 12, Downloads: 1200, Tags: []string{"safetensors", "apache-2.0"}}}
 	var buf bytes.Buffer
-	printHubResults(&buf, hubView{Models: m, Sort: "relevance", Limit: 5, WordWrap: true})
+	printHubResults(&buf, hubView{Models: m, Sort: "relevance", Limit: 5, WrapWidth: 28})
 	s := buf.String()
-	if !strings.Contains(s, long) {
-		t.Fatalf("word-wrap should print full MODEL\n%s", s)
-	}
 	if strings.Contains(s, trunc) {
-		t.Fatalf("word-wrap should not ellipsize MODEL\n%s", s)
+		t.Fatalf("wrap should not ellipsize MODEL\n%s", s)
+	}
+	parts := wrapModelLines(long, 28)
+	if len(parts) < 2 {
+		t.Fatalf("fixture should wrap: %#v", parts)
+	}
+	for _, part := range parts {
+		if !strings.Contains(s, part) {
+			t.Fatalf("missing wrap chunk %q\n%s", part, s)
+		}
+	}
+	if !strings.Contains(s, "ACTIONS") || !strings.Contains(s, "🔗") || !strings.Contains(s, "📋") {
+		t.Fatalf("ACTIONS column missing\n%s", s)
 	}
 	if !strings.Contains(s, "inspect "+long) || !strings.Contains(s, "deploy "+long) {
 		t.Fatalf("Next: should stay full with wrap\n%s", s)
 	}
+	lines := strings.Split(s, "\n")
+	var dataLines []string
+	for _, line := range lines {
+		if strings.Contains(line, parts[0]) || strings.Contains(line, parts[1]) {
+			dataLines = append(dataLines, line)
+		}
+	}
+	if len(dataLines) < 2 {
+		t.Fatalf("expected continuation line\n%s", s)
+	}
+	if !strings.Contains(dataLines[0], "12") {
+		t.Fatalf("likes on first line\n%s", dataLines[0])
+	}
+	if strings.Contains(dataLines[1], "1.2K") {
+		t.Fatalf("continuation must not repeat other columns\n%s", dataLines[1])
+	}
 }
 
-func TestWordWrapFlagsEitherEnables(t *testing.T) {
-	for _, args := range [][]string{{"--word-wrap"}, {"-ww"}, {"--ww"}, {"--word-wrap", "-ww"}} {
+func TestPrintHubResultsHasActionsColumn(t *testing.T) {
+	var buf bytes.Buffer
+	printHubResults(&buf, hubView{
+		Models: []hf.Model{{ID: "org/short", Likes: 1, Downloads: 1, Tags: []string{"safetensors"}}},
+		Sort:   "relevance",
+		Limit:  5,
+	})
+	s := buf.String()
+	if !strings.Contains(s, "ACTIONS") {
+		t.Fatalf("header missing ACTIONS\n%s", s)
+	}
+	if !strings.Contains(s, "🔗") || !strings.Contains(s, "📋") {
+		t.Fatalf("row missing action icons\n%s", s)
+	}
+	if !strings.Contains(s, "search --copy N") {
+		t.Fatalf("footer hint missing\n%s", s)
+	}
+}
+
+func TestWrapFlagsResolveWidth(t *testing.T) {
+	cases := []struct {
+		args []string
+		want int
+	}{
+		{[]string{"--wrap", "28"}, 28},
+		{[]string{"--word-wrap", "40"}, 40},
+		{[]string{"-ww", "28"}, 28},
+		{[]string{"--ww", "50"}, 50},
+		{[]string{"--wrap", "20", "-ww", "50"}, 50},
+		{nil, 0},
+	}
+	for _, tc := range cases {
 		fs := newFlagSet("search")
-		wordWrap, ww := addWordWrapFlags(fs)
-		if err := parseFlags(fs, args); err != nil {
-			t.Fatalf("%v: %v", args, err)
+		wrap, wordWrap, ww := addWrapFlags(fs)
+		if err := parseFlags(fs, tc.args); err != nil {
+			t.Fatalf("%v: %v", tc.args, err)
 		}
-		if !*wordWrap && !*ww {
-			t.Fatalf("%v: expected wrap", args)
+		got := resolveWrapWidth(*wrap, *wordWrap, *ww)
+		if got != tc.want {
+			t.Fatalf("%v: got %d want %d", tc.args, got, tc.want)
 		}
-	}
-	fs := newFlagSet("search")
-	wordWrap, ww := addWordWrapFlags(fs)
-	if err := parseFlags(fs, nil); err != nil {
-		t.Fatal(err)
-	}
-	if *wordWrap || *ww {
-		t.Fatal("default wrap should be off")
 	}
 }

@@ -20,14 +20,16 @@ type hubView struct {
 	SkipFooter bool
 	RankSource string
 	Queries    []string
-	WordWrap   bool
+	// WrapWidth > 0 wraps MODEL across lines at that rune width.
+	// 0 = single-line ellipsis truncate (default column max 48).
+	WrapWidth int
 }
 
 type hubOpts struct {
-	Sort     string
-	Limit    int
-	Command  string
-	WordWrap bool
+	Sort      string
+	Limit     int
+	Command   string
+	WrapWidth int
 }
 
 func printHubResults(w io.Writer, v hubView) {
@@ -73,35 +75,58 @@ func printHubResults(w io.Writer, v hubView) {
 		engines[i] = string(f.Engine)
 		licenses[i] = dash(m.License())
 	}
-	idMax := 48
-	if v.WordWrap {
-		idMax = 0
+
+	wrapW := clampWrapWidth(v.WrapWidth)
+	var idW int
+	if wrapW > 0 {
+		idW = wrapW
+		if idW < utf8.RuneCountInString("MODEL") {
+			idW = utf8.RuneCountInString("MODEL")
+		}
+	} else {
+		idW = colWidth("MODEL", ids, 48)
 	}
-	idW := colWidth("MODEL", ids, idMax)
 	likeW := colWidth("LIKES", likes, 0)
 	dlW := colWidth("DOWNLOADS", dls, 0)
 	engW := colWidth("ENGINE", engines, 0)
 	licW := colWidth("LICENSE", licenses, 16)
+	actW := colWidth("ACTIONS", []string{"🔗 📋"}, 0)
 
-	fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s\n",
+	fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s  %s\n",
 		dim(padRight("#", 2)),
 		dim(padRight("MODEL", idW)),
 		dim(padRight("LIKES", likeW)),
 		dim(padRight("DOWNLOADS", dlW)),
 		dim(padRight("ENGINE", engW)),
 		dim(padRight("LICENSE", licW)),
+		dim(padRight("ACTIONS", actW)),
 	)
+
+	// Indent before MODEL column: "  " + "#" pad(2) + "  "
+	modelIndent := 2 + 2 + 2
+
 	for i := range v.Models {
-		id := displayModel(ids[i], idW, v.WordWrap)
-		fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s\n",
+		var modelLines []string
+		if wrapW > 0 {
+			modelLines = wrapModelLines(ids[i], idW)
+		} else {
+			modelLines = []string{truncateRunes(ids[i], idW)}
+		}
+		fmt.Fprintf(w, "  %s  %s  %s  %s  %s  %s  %s\n",
 			padRight(fmt.Sprintf("%d", i+1), 2),
-			bold(padRight(id, idW)),
+			bold(padRight(modelLines[0], idW)),
 			dim(padRight(likes[i], likeW)),
 			dim(padRight(dls[i], dlW)),
 			engineTag(formats[i].Engine, engW),
 			dim(padRight(truncateRunes(licenses[i], licW), licW)),
+			actionsCell(ids[i]),
 		)
+		for _, cont := range modelLines[1:] {
+			fmt.Fprintf(w, "%s%s\n", strings.Repeat(" ", modelIndent), bold(cont))
+		}
 	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, dim("ACTIONS  🔗 opens Hub  ·  📋 / copy N copies model id  ·  or search --copy N"))
 	fmt.Fprintln(w)
 
 	if v.SkipFooter {
@@ -124,6 +149,30 @@ func printHubResults(w io.Writer, v hubView) {
 		open = append(open, v.Command+" --sort likes --limit 20")
 	}
 	commands(w, "Next:", open...)
+}
+
+// wrapModelLines splits s into chunks of at most width runes. width must be > 0.
+func wrapModelLines(s string, width int) []string {
+	if width <= 0 {
+		return []string{s}
+	}
+	r := []rune(s)
+	if len(r) == 0 {
+		return []string{""}
+	}
+	if len(r) <= width {
+		return []string{s}
+	}
+	lines := make([]string, 0, (len(r)+width-1)/width)
+	for len(r) > 0 {
+		if len(r) <= width {
+			lines = append(lines, string(r))
+			break
+		}
+		lines = append(lines, string(r[:width]))
+		r = r[width:]
+	}
+	return lines
 }
 
 func engineTag(engine hf.Engine, width int) string {
