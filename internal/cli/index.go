@@ -195,69 +195,58 @@ func cmdIndexUpdate(args []string) error {
 	}
 	defer idx.Close()
 
-	lastUpdate, err := idx.LastUpdate()
+	lastUpdate, err := idx.Watermark()
 	if err != nil {
-		return fmt.Errorf("get last update: %w", err)
+		return fmt.Errorf("get watermark: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "%s Updating index (last update: %s ago)...\n",
+	fmt.Fprintf(os.Stderr, "%s Updating index (watermark: %s ago)...\n",
 		bold("⚡"), formatDuration(time.Since(lastUpdate)))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	client := hf.New(config.Load().HFToken)
-
-	// Fetch recently modified models
-	var totalUpdated int
-	limit := 1000
-	offset := 0
 	startTime := time.Now()
-
-	for {
-		fmt.Fprintf(os.Stderr, "\r📥 Checking for updates... %d updated", totalUpdated)
-
-		models, err := client.Search(ctx, hf.SearchOpts{
-			Task:   "text-generation",
-			Sort:   "downloads",
-			Limit:  limit,
-			Offset: offset,
-		})
-		if err != nil {
-			return fmt.Errorf("fetch models: %w", err)
-		}
-
-		if len(models) == 0 {
-			break
-		}
-
-		foundOld := false
-		for _, m := range models {
-			lastMod, _ := time.Parse(time.RFC3339, m.LastModified)
-			if lastMod.Before(lastUpdate) {
-				foundOld = true
-				break
-			}
-
-			if err := idx.InsertModel(m); err != nil {
-				fmt.Fprintf(os.Stderr, "\n%s  Failed to update %s: %v\n", red("✗"), m.ID, err)
-			} else {
-				totalUpdated++
-			}
-		}
-
-		// If we found models older than our last update, we've caught up
-		if foundOld {
-			break
-		}
-
-		offset += limit
-		time.Sleep(100 * time.Millisecond)
+	since := int64(0)
+	if !lastUpdate.IsZero() {
+		since = lastUpdate.Unix()
 	}
 
-	fmt.Fprintf(os.Stderr, "\r")
+	fmt.Fprintf(os.Stderr, "📥 Fetching models modified since watermark...\n")
+	models, err := client.ListModels(ctx, hf.ListOpts{
+		Task:      "text-generation",
+		Sort:      "lastModified",
+		Limit:     2000,
+		PageSize:  100,
+		Sleep:     150 * time.Millisecond,
+		SinceUnix: since,
+		Full:      true,
+	})
+	if err != nil {
+		return fmt.Errorf("fetch models: %w", err)
+	}
 
-	idx.SetMetadata("last_update", time.Now().Format(time.RFC3339))
+	var totalUpdated int
+	var maxLM time.Time
+	for _, m := range models {
+		if err := idx.InsertModel(m); err != nil {
+			fmt.Fprintf(os.Stderr, "%s  Failed to update %s: %v\n", red("✗"), m.ID, err)
+			continue
+		}
+		totalUpdated++
+		if m.LastModified != "" {
+			if t, err := time.Parse(time.RFC3339, m.LastModified); err == nil && t.After(maxLM) {
+				maxLM = t
+			}
+		}
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	_ = idx.SetMetadata("last_update", now)
+	if !maxLM.IsZero() {
+		_ = idx.SetMetadata("watermark", maxLM.UTC().Format(time.RFC3339))
+	}
 
 	elapsed := time.Since(startTime)
 	fmt.Fprintf(os.Stderr, "%s Updated %s models in %s\n",

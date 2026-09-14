@@ -305,3 +305,91 @@ func Exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
+
+// OpenReadOnly opens an existing index file for reading/merging.
+func OpenReadOnly(path string) (*Index, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, err
+	}
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+	idx := &Index{db: db, path: path}
+	if err := idx.createTables(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return idx, nil
+}
+
+// AllModels returns every model row as hf.Model (for pack merge).
+func (idx *Index) AllModels() ([]hf.Model, error) {
+	rows, err := idx.db.Query(`
+		SELECT id, author, description, tags, likes, downloads,
+		       library_name, license, pipeline_tag, last_modified
+		FROM models
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var models []hf.Model
+	for rows.Next() {
+		var m hf.Model
+		var tagsJSON, desc, license string
+		var lastMod int64
+		if err := rows.Scan(&m.ID, &m.Author, &desc, &tagsJSON, &m.Likes, &m.Downloads,
+			&m.LibraryName, &license, &m.PipelineTag, &lastMod); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(tagsJSON), &m.Tags)
+		m.Description = desc
+		if lastMod > 0 {
+			m.LastModified = time.Unix(lastMod, 0).UTC().Format(time.RFC3339)
+		}
+		if license != "" {
+			m.Tags = append(m.Tags, "license:"+license)
+		}
+		models = append(models, m)
+	}
+	return models, rows.Err()
+}
+
+// MaxLastModified returns the max last_modified timestamp among models.
+func (idx *Index) MaxLastModified() (time.Time, error) {
+	var ts sql.NullInt64
+	err := idx.db.QueryRow("SELECT MAX(last_modified) FROM models").Scan(&ts)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if !ts.Valid || ts.Int64 <= 0 {
+		return time.Time{}, nil
+	}
+	return time.Unix(ts.Int64, 0).UTC(), nil
+}
+
+// Watermark returns the preferred update watermark: metadata last_update /
+// pack watermark, else MaxLastModified, else LastUpdate (indexed_at).
+func (idx *Index) Watermark() (time.Time, error) {
+	for _, key := range []string{"watermark", "last_update"} {
+		v, err := idx.GetMetadata(key)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if v == "" {
+			continue
+		}
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			return t, nil
+		}
+		if t, err := time.Parse(time.RFC3339Nano, v); err == nil {
+			return t, nil
+		}
+	}
+	if t, err := idx.MaxLastModified(); err == nil && !t.IsZero() {
+		return t, nil
+	}
+	return idx.LastUpdate()
+}

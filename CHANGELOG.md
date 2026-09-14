@@ -7,6 +7,10 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Category SQLite **index packs** on GitHub Releases (`index-manifest.json`, `index-<category>.db`); `init` multi-select install; `update` watermark deltas / `update --packs`; `cmd/build-index-packs` + release workflow.
+
+
 - Default `search` uses the local/bundled SQLite index only and never calls the Hub when an index exists. Live Hub search is opt-in via `--online` / `--hub` (rate-limited; set `HF_TOKEN`). If no index exists, search tells you to run `update` or `init` instead of hitting the Hub.
 - Restored search table **ACTIONS** column (🔗 OSC-8 Hub link, 📋 plain) and footer hint for `copy N` / `search --copy N`.
 - Search is NLP/embeddings-only: removed local chat re-rank (`localllm` / `recommend.Rerank` chat path).

@@ -33,6 +33,7 @@ export default defineConfig({
             { text: "What this is", link: "/guide/" },
             { text: "Local runtimes", link: "/guide/local" },
             { text: "Runpod vLLM", link: "/guide/runpod" },
+            { text: "Index packs", link: "/guide/index-packs" },
           ],
         },
       ],
