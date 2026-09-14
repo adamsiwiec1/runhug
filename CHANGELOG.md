@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- Wizard GPU step is a **TTY interactive picker** (colored table, ↑/↓ / j/k / n/p, 1–9 jump, Enter select, Esc/q = recommended). Full cost scenarios are **opt-in** via `e` on the highlighted row only — not dumped for every pool.
+- `recommend gpu` and `deploy --dry-run` no longer auto-print huge cost blocks; pass `--estimate` / `-e` for the full cold/warm/daily table. Compact `$X.XX/hr` one-liners remain.
+
+### Added
+- `internal/cli/gpu_picker.go` (table formatting + key handling, unit-tested).
+
 ## [0.1.3] - 2026-09-14
 
 ### Added

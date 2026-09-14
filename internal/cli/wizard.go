@@ -12,7 +12,6 @@ import (
 	"github.com/adamsiwiec1/runhug-cli/internal/hf"
 	"github.com/adamsiwiec1/runhug-cli/internal/recommend"
 	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
-	"github.com/adamsiwiec1/runhug-cli/internal/sizing"
 	"github.com/adamsiwiec1/runhug-cli/internal/store"
 )
 
@@ -82,13 +81,13 @@ func wizardChecklist(w io.Writer) error {
 		},
 		{
 			title: "7. GPU sizing",
-			note:  "List fitting pools + approximate $/request costs; pick one for deploy.",
-			cmds:  []string{"runhug-cli recommend gpu <org/model>", "runhug-cli deploy <org/model> --dry-run --gpu <POOL>"},
+			note:  "Interactive pool picker (e = estimate for highlighted GPU); use --estimate on recommend gpu / deploy --dry-run for full costs.",
+			cmds:  []string{"runhug-cli recommend gpu <org/model>", "runhug-cli recommend gpu <org/model> --estimate", "runhug-cli deploy <org/model> --dry-run --gpu <POOL>"},
 		},
 		{
 			title: "8. Deploy dry-run",
 			note:  "Always plan first — cost/GPU estimate, nothing created.",
-			cmds:  []string{"runhug-cli deploy <org/model> --dry-run"},
+			cmds:  []string{"runhug-cli deploy <org/model> --dry-run", "runhug-cli deploy <org/model> --dry-run --estimate"},
 		},
 		{
 			title: "9. Live deploy?",
@@ -486,81 +485,7 @@ func wizardGPU(w io.Writer, modelID string) (string, error) {
 		return adv.Choice.Pool.ID, nil
 	}
 
-	fmt.Fprintln(w, bold("GPU options")+"  "+dim("recommended = cheapest in-stock fit; higher # = more VRAM headroom"))
-	for i, p := range opts {
-		tag := ""
-		if i == 0 {
-			tag = "  " + green("recommended")
-		} else if p.MemoryGB > opts[0].MemoryGB+0.01 {
-			tag = "  " + dim("larger / safer")
-		}
-		stock := p.Availability
-		if stock == "" {
-			if p.InStock {
-				stock = "in stock"
-			} else {
-				stock = "none"
-			}
-		}
-		cost := sizing.EstimateServerlessCost(p.PricePerHour, adv.WeightGB, 1, 5, true)
-		fmt.Fprintf(w, "  %s  %s  %s%s\n",
-			cyan(fmt.Sprintf("%d)", i+1)),
-			bold(p.ID),
-			dim(fmt.Sprintf("%.0f GB · %s · $%.2f/hr · %s", p.MemoryGB, dash(p.ExampleGPU), p.PricePerHour, stock)),
-			tag,
-		)
-		fmt.Fprintf(w, "      %s\n", dim(cost.CompactLine()))
-	}
-	fmt.Fprintln(w)
-	headroom := opts[0].MemoryGB - adv.RequiredGB
-	if headroom >= 0 && headroom < 2 {
-		fmt.Fprintln(w, yellow("⚠")+"  "+dim(fmt.Sprintf(
-			"%s fits (~%.1f GB need on %.0f GB) but is tight — a larger pool is optional and safer.",
-			opts[0].ID, adv.RequiredGB, opts[0].MemoryGB)))
-		fmt.Fprintln(w)
-	}
-	recCost := sizing.EstimateServerlessCost(opts[0].PricePerHour, adv.WeightGB, 1, 5, true)
-	fmt.Fprintln(w, bold(recCost.FormatBlock(opts[0].ID)))
-	fmt.Fprintln(w)
-
-	hint := fmt.Sprintf("Pick GPU 1-%d (Enter = recommended)", len(opts))
-	line, err := readLine(hint + ": ")
-	if err != nil {
-		return "", err
-	}
-	pick := 1
-	if strings.TrimSpace(line) != "" {
-		n, q, repo := parseChoice(line, len(opts))
-		_ = q
-		_ = repo
-		if n <= 0 {
-			// Allow typing a pool id directly.
-			want := strings.TrimSpace(line)
-			found := -1
-			for i, p := range opts {
-				if strings.EqualFold(p.ID, want) {
-					found = i + 1
-					break
-				}
-			}
-			if found < 0 {
-				return "", fmt.Errorf("expected a number 1-%d or a pool id", len(opts))
-			}
-			pick = found
-		} else {
-			pick = n
-		}
-	}
-	chosenPool := opts[pick-1]
-	chosen := chosenPool.ID
-	fmt.Fprintln(w, green("✓")+"  "+dim("Using GPU pool "+chosen))
-	if pick != 1 {
-		fmt.Fprintln(w)
-		chosenCost := sizing.EstimateServerlessCost(chosenPool.PricePerHour, adv.WeightGB, 1, 5, true)
-		fmt.Fprintln(w, bold(chosenCost.FormatBlock(chosen)))
-	}
-	fmt.Fprintln(w)
-	return chosen, nil
+	return pickGPUPool(w, opts, adv.RequiredGB, adv.WeightGB)
 }
 
 func resolveWizardModel(ctx context.Context, modelID string) (*hf.Model, error) {
