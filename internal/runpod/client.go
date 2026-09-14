@@ -82,14 +82,17 @@ type GPUConfig struct {
 }
 
 type Workers struct {
-	Min int `json:"min"`
-	Max int `json:"max"`
+	Min         int `json:"min"`
+	Max         int `json:"max"`
+	IdleTimeout int `json:"idleTimeout,omitempty"`
 }
 
+// Scaling is a discriminated union on Type (QUEUE_DELAY | REQUEST_COUNT).
+// Use QueueDelay OR RequestCount — never Value/IdleTimeout (those belong on Workers).
 type Scaling struct {
-	Type        string  `json:"type"`
-	Value       float64 `json:"value"`
-	IdleTimeout int     `json:"idleTimeout"`
+	Type         string   `json:"type"`
+	QueueDelay   *float64 `json:"queueDelay,omitempty"`
+	RequestCount *int     `json:"requestCount,omitempty"`
 }
 
 type RequestURLs struct {
@@ -100,6 +103,7 @@ type RequestURLs struct {
 
 type CreateEndpointRequest struct {
 	Name      string            `json:"name"`
+	Type      string            `json:"type"` // QUEUE | LOAD_BALANCER (required by Runpod v2)
 	Image     string            `json:"image"`
 	Disk      int               `json:"disk,omitempty"`
 	Env       map[string]string `json:"env,omitempty"`
@@ -108,6 +112,27 @@ type CreateEndpointRequest struct {
 	Scaling   *Scaling          `json:"scaling,omitempty"`
 	Timeout   int               `json:"timeout,omitempty"`
 	Flashboot string            `json:"flashboot,omitempty"`
+}
+
+const (
+	EndpointTypeQueue        = "QUEUE"
+	EndpointTypeLoadBalancer = "LOAD_BALANCER"
+	ScalingTypeQueueDelay    = "QUEUE_DELAY"
+	ScalingTypeRequestCount  = "REQUEST_COUNT"
+)
+
+func RequestCountScaling(n int) *Scaling {
+	if n < 1 {
+		n = 1
+	}
+	return &Scaling{Type: ScalingTypeRequestCount, RequestCount: &n}
+}
+
+func QueueDelayScaling(seconds float64) *Scaling {
+	if seconds < 0.5 {
+		seconds = 4
+	}
+	return &Scaling{Type: ScalingTypeQueueDelay, QueueDelay: &seconds}
 }
 
 type Problem struct {
@@ -173,8 +198,23 @@ func (c *Client) DeleteEndpoint(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/v2/serverless/"+url.PathEscape(id), nil, nil)
 }
 
+// OpenAIURL returns the queue-based OpenAI base URL for worker-v1-vllm.
+// Prefer OpenAIURLFor when the endpoint type is known.
 func OpenAIURL(endpointID string) string {
-	return strings.TrimRight(OpenAIBase, "/") + "/" + endpointID + "/openai/v1"
+	return OpenAIURLFor(EndpointTypeQueue, endpointID)
+}
+
+// OpenAIURLFor returns the OpenAI-compatible base URL for an endpoint type.
+// LOAD_BALANCER: https://{id}.api.runpod.ai/openai/v1
+// QUEUE (default): https://api.runpod.ai/v2/{id}/openai/v1
+func OpenAIURLFor(endpointType, endpointID string) string {
+	id := strings.TrimSpace(endpointID)
+	switch strings.ToUpper(strings.TrimSpace(endpointType)) {
+	case EndpointTypeLoadBalancer:
+		return "https://" + id + ".api.runpod.ai/openai/v1"
+	default:
+		return strings.TrimRight(OpenAIBase, "/") + "/" + id + "/openai/v1"
+	}
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body any, dest any) error {
