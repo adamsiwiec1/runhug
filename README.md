@@ -8,7 +8,7 @@ best models for a use case via NLP/vector search, deploy in minutes, and
 list/manage endpoints — faster than the UI. Pull locally when you want; one
 OpenAI-compatible proxy either way.
 
-Commands stay in the terminal: **search**, **init**, **connect**, **deploy**,
+Commands stay in the terminal: **search**, **recommend**, **init**, **connect**, **deploy**,
 **list**, **proxy**.
 
 ## Install
@@ -163,6 +163,43 @@ runhug-cli update
 runhug-cli update --force   # rebuild from Hub
 runhug-cli update --cli     # print how to upgrade the CLI itself
 ```
+
+## Recommend
+
+Ask which model fits a use case. Shortlist comes from the **local index**
+(same path as `search`); an optional OpenAI-compatible chat call compares
+**only those candidates**. Default advisor is local Ollama
+(`http://127.0.0.1:11434/v1`). Each candidate includes a **Suggested GPU**
+(Runpod pool + ~$/hr) from live `gpus` catalog when connected, else an
+offline estimate.
+
+The SQLite unique key is `models.id` (Hugging Face repo id, e.g. `org/name`).
+
+```bash
+runhug-cli recommend "best model for RAG on a 16GB laptop"
+runhug-cli recommend -q "…" --candidates 8
+runhug-cli recommend --no-llm "coding on a laptop"   # scored shortlist + GPU only
+runhug-cli recommend --base-url http://127.0.0.1:11434/v1 --model llama3.2 "…"
+runhug-cli recommend --base-url https://api.openai.com/v1 --api-key-env OPENAI_API_KEY --model gpt-4o-mini "…"
+runhug-cli recommend gpu Qwen/Qwen2.5-7B-Instruct    # GPU / VRAM for one model
+```
+
+Settings: `advisor_base_url`, `advisor_model` (API keys only via env —
+never printed).
+
+## Update limit
+
+Hub delta upserts on `update` are capped (default **2000**; `0` = unlimited):
+
+```bash
+runhug-cli update --limit 5000
+runhug-cli config set update_limit 0
+export RUNHUG_UPDATE_LIMIT=1000
+```
+
+Precedence: `--limit` > `RUNHUG_UPDATE_LIMIT` > `settings.json` `update_limit` > 2000.
+**New** Hub models need `likes ≥ 3` and `downloads ≥ 100`; existing ids always
+refresh metadata.
 
 ## Connect to Runpod
 

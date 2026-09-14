@@ -244,6 +244,25 @@ type SearchFilters struct {
 	Limit       int
 }
 
+
+// HasModel reports whether a Hugging Face repo id already exists in the index.
+// models.id is the unique primary key (HF repo id, e.g. org/name).
+func (idx *Index) HasModel(id string) (bool, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return false, nil
+	}
+	var one int
+	err := idx.db.QueryRow(`SELECT 1 FROM models WHERE id = ? LIMIT 1`, id).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // Count returns the number of models in the index.
 func (idx *Index) Count() (int, error) {
 	var count int

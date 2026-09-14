@@ -179,9 +179,11 @@ func cmdIndexSetup(args []string) error {
 
 func cmdIndexUpdate(args []string) error {
 	fs := newFlagSet("index-update")
+	limitFlag := fs.Int("limit", -1, "Hub delta upsert cap (0=unlimited; default 2000)")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
+	updateLimit := config.ResolveUpdateLimit(*limitFlag)
 
 	indexPath := indexFilePath()
 	if !index.Exists(indexPath) {
@@ -217,7 +219,7 @@ func cmdIndexUpdate(args []string) error {
 	models, err := client.ListModels(ctx, hf.ListOpts{
 		Task:      "text-generation",
 		Sort:      "lastModified",
-		Limit:     2000,
+		Limit:     updateLimit,
 		PageSize:  100,
 		Sleep:     150 * time.Millisecond,
 		SinceUnix: since,
@@ -226,6 +228,7 @@ func cmdIndexUpdate(args []string) error {
 	if err != nil {
 		return fmt.Errorf("fetch models: %w", err)
 	}
+	models = filterHubDeltaModels(idx, models)
 
 	var totalUpdated int
 	var maxLM time.Time

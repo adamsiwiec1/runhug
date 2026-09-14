@@ -35,6 +35,9 @@ func ParseIntent(raw string, ramGB float64) Intent {
 	case containsAny(s, "code", "coding", "programmer", "developer", "script", "refactor", "debug"):
 		in.Task = "code"
 		in.Query = "instruct coder"
+	case containsAny(s, "rag", "retrieval", "embedding", "vector store", "vector db"):
+		in.Task = "rag"
+		in.Query = "instruct rag"
 	case containsAny(s, "math", "reason", "logic", "think"):
 		in.Task = "reason"
 		in.Query = "instruct"
