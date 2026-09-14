@@ -80,8 +80,11 @@ after union), then re-rank locally — they do not ask the Hub to sort by
 likes. `--limit` is how many rows to show (default 15). `--engine`
 accepts `vllm`, `gguf`, or any other engine string; `--license` matches
 Hub tags (`apache-2.0`, `mit`, `gemma`, `other` for empty or uncommon
-licenses). The table may shorten MODEL; `--word-wrap` / `-ww` prints the
-full repo id. **Next:** always uses the full repo id.
+licenses). The table may shorten MODEL (ellipsis); `--wrap 28` /
+`--word-wrap N` / `-ww N` wraps MODEL across lines at N runes (other
+columns stay on the first line). **ACTIONS** offers 🔗 (open Hub) and 📋
+(copy via `search --copy N` or REPL `copy N`). **Next:** always uses the
+full repo id.
 
 The Hub has **no public semantic model-search API**. Website search and
 `GET /api/models?search=` are lexical (repo id / author; cards are a
