@@ -12,7 +12,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/hf"
 )
 
 // Index manages the local model search database.

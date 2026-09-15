@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
-	"github.com/adamsiwiec1/runhug-cli/internal/sizing"
+	"github.com/adamsiwiec1/runhug/internal/runpod"
+	"github.com/adamsiwiec1/runhug/internal/sizing"
 	"golang.org/x/term"
 )
 

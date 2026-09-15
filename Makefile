@@ -1,7 +1,7 @@
 .PHONY: help build test tidy docs docs-build check build-index-packs
 
 help:
-	@echo "build              Go binary → bin/runhug-cli"
+	@echo "build              Go binary → bin/runhug"
 	@echo "test               go test ./..."
 	@echo "tidy               go mod tidy"
 	@echo "build-index-packs  Category SQLite packs → dist/index (needs HF_TOKEN)"
@@ -10,7 +10,7 @@ help:
 	@echo "check              tests + vet + docs-build"
 
 build:
-	go build -o bin/runhug-cli ./cmd/runhug-cli
+	go build -o bin/runhug ./cmd/runhug
 
 test:
 	go test ./...

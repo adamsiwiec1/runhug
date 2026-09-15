@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/semantic"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/semantic"
 )
 
 const searchPoolCap = 100

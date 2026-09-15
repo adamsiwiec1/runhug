@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/hf"
 )
 
 type Found struct {

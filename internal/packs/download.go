@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/version"
+	"github.com/adamsiwiec1/runhug/internal/version"
 )
 
 // ReleaseClient downloads pack assets from GitHub Releases.

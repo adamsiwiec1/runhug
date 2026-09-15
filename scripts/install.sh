@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Install the latest runhug release binary from adamsiwiec1/runhug-cli.
-# Assets are bare binaries: runhug-cli_<ver>_{darwin,linux}_{amd64,arm64}
+# Install the latest runhug release binary from adamsiwiec1/runhug.
+# Next release assets: runhug_<ver>_{darwin,linux}_{amd64,arm64}
+# Fallback: older tags may still publish runhug-cli_<ver>_… — accepted until cut over.
 # Usage: curl -fsSL …/scripts/install.sh | bash
 set -euo pipefail
 
-REPO="adamsiwiec1/runhug-cli"
-ASSET_PREFIX="runhug-cli_"
+REPO="adamsiwiec1/runhug"
+# Prefer new asset names; fall back to pre-rename prefix for older releases.
+ASSET_PREFIXES=("runhug_" "runhug-cli_")
 BIN_NAME="runhug"
 
 die() { echo "install.sh: $*" >&2; exit 1; }
@@ -44,18 +46,25 @@ tag="$(printf '%s' "$json" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1
 [ -n "$tag" ] || die "could not parse tag_name from GitHub API"
 
 ver="${tag#v}"
-asset="${ASSET_PREFIX}${ver}_${os}_${arch}"
-url="https://github.com/${REPO}/releases/download/${tag}/${asset}"
-
-api_url="$(printf '%s' "$json" | sed -n "s/.*\"browser_download_url\":[[:space:]]*\"\\([^\"]*${asset}\\)\"/\1/p" | head -1)"
-[ -n "$api_url" ] && url="$api_url"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 tmpbin="${tmpdir}/${BIN_NAME}"
 
-echo "Downloading ${url}"
-curl -fsSL -o "$tmpbin" "$url" || die "download failed (asset missing?): $url"
+asset=""
+downloaded=0
+for prefix in "${ASSET_PREFIXES[@]}"; do
+  asset="${prefix}${ver}_${os}_${arch}"
+  url="https://github.com/${REPO}/releases/download/${tag}/${asset}"
+  api_url="$(printf '%s' "$json" | sed -n "s/.*\"browser_download_url\":[[:space:]]*\"\\([^\"]*${asset}\\)\"/\1/p" | head -1)"
+  [ -n "$api_url" ] && url="$api_url"
+  echo "Trying ${url}"
+  if curl -fsSL -o "$tmpbin" "$url"; then
+    downloaded=1
+    break
+  fi
+done
+[ "$downloaded" -eq 1 ] || die "download failed for prefixes ${ASSET_PREFIXES[*]} (tag ${tag})"
 chmod +x "$tmpbin"
 
 if [ -w /usr/local/bin ] 2>/dev/null || [ "$(id -u)" -eq 0 ]; then
@@ -75,7 +84,7 @@ else
   chmod +x "$dest"
 fi
 
-echo "Installed ${BIN_NAME} → ${dest} (${tag})"
+echo "Installed ${BIN_NAME} → ${dest} (${tag}, asset ${asset})"
 case ":${PATH}:" in
   *":$(dirname "$dest"):"*) ;;
   *)

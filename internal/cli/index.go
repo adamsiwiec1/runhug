@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/index"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/index"
 )
 
 func cmdIndexSetup(args []string) error {
@@ -22,7 +22,7 @@ func cmdIndexSetup(args []string) error {
 	indexPath := indexFilePath()
 	if index.Exists(indexPath) && !*force {
 		fmt.Fprintf(os.Stderr, "%s  Index already exists at %s\n", yellow("⚠"), indexPath)
-		fmt.Fprintf(os.Stderr, "   Use --force to rebuild, or run: %s\n", cyan("runhug-cli update"))
+		fmt.Fprintf(os.Stderr, "   Use --force to rebuild, or run: %s\n", cyan("runhug update"))
 		return nil
 	}
 
@@ -172,7 +172,7 @@ func cmdIndexSetup(args []string) error {
 
 	fmt.Fprintf(os.Stderr, "%s Indexed %s models in %s\n", green("✓"), bold(fmt.Sprintf("%d", totalModels)), elapsed.Round(time.Second))
 	fmt.Fprintf(os.Stderr, "%s Saved to %s (%d KB)\n\n", green("✓"), indexPath, sizeKB)
-	fmt.Fprintf(os.Stderr, "Now you can search instantly with: %s\n", cyan("runhug-cli search -q \"...\""))
+	fmt.Fprintf(os.Stderr, "Now you can search instantly with: %s\n", cyan("runhug search -q \"...\""))
 
 	return nil
 }
@@ -187,7 +187,7 @@ func cmdIndexUpdate(args []string) error {
 
 	indexPath := indexFilePath()
 	if !index.Exists(indexPath) {
-		fmt.Fprintf(os.Stderr, "%s  No index found. Run: %s\n", yellow("⚠"), cyan("runhug-cli update"))
+		fmt.Fprintf(os.Stderr, "%s  No index found. Run: %s\n", yellow("⚠"), cyan("runhug update"))
 		return nil
 	}
 
@@ -268,7 +268,7 @@ func cmdIndexInfo(args []string) error {
 
 	if !hasLocal && !hasBundled {
 		fmt.Fprintf(os.Stderr, "%s  No index found\n", yellow("⚠"))
-		fmt.Fprintf(os.Stderr, "   Run: %s to create your own index\n", cyan("runhug-cli update"))
+		fmt.Fprintf(os.Stderr, "   Run: %s to create your own index\n", cyan("runhug update"))
 		return nil
 	}
 
@@ -308,7 +308,7 @@ func cmdIndexInfo(args []string) error {
 
 		if time.Since(lastUpdate).Hours() > 24*7 {
 			fmt.Fprintf(os.Stdout, "%s  Index is over a week old\n", yellow("⚠"))
-			fmt.Fprintf(os.Stdout, "   Run: %s\n", cyan("runhug-cli update"))
+			fmt.Fprintf(os.Stdout, "   Run: %s\n", cyan("runhug update"))
 			fmt.Fprintln(os.Stdout)
 		}
 	}
@@ -335,16 +335,16 @@ func cmdIndexInfo(args []string) error {
 
 			if !hasLocal {
 				fmt.Fprintf(os.Stdout, "%s  Using bundled index (ships with package)\n", dim("ℹ"))
-				fmt.Fprintf(os.Stdout, "   Run %s for latest models\n", cyan("runhug-cli update"))
+				fmt.Fprintf(os.Stdout, "   Run %s for latest models\n", cyan("runhug update"))
 				fmt.Fprintln(os.Stdout)
 			}
 		}
 	}
 
 	commands(os.Stdout, "Commands:",
-		"runhug-cli search -q \"...\"",
-		"runhug-cli update",
-		"runhug-cli update --force",
+		"runhug search -q \"...\"",
+		"runhug update",
+		"runhug update --force",
 	)
 
 	return nil
@@ -353,7 +353,7 @@ func cmdIndexInfo(args []string) error {
 func indexFilePath() string {
 	dir, err := config.Dir()
 	if err != nil {
-		dir = filepath.Join(os.TempDir(), "runhug-cli")
+		dir = filepath.Join(os.TempDir(), "runhug")
 	}
 	_ = config.MigrateFileIfMissing(dir, "models.db")
 	return filepath.Join(dir, "models.db")
@@ -362,7 +362,7 @@ func indexFilePath() string {
 func bundledIndexPath() string {
 	// Try multiple locations for bundled index
 
-	// 1. Relative to executable (production: bin/runhug-cli -> ../data/models.db)
+	// 1. Relative to executable (production: bin/runhug -> ../data/models.db)
 	exePath, err := os.Executable()
 	if err == nil {
 		bundled := filepath.Join(filepath.Dir(exePath), "..", "data", "models.db")

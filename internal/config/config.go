@@ -17,8 +17,9 @@ const (
 	EnvUpdateLimit   = "RUNHUG_UPDATE_LIMIT"
 	DefaultUpdateLimit = 2000
 
-	appDirName        = "runhug-cli"
-	oldAppDirName     = "runpod-vllm-proxy"
+	appDirName     = "runhug"
+	prevAppDirName = "runhug-cli" // immediate predecessor config dir
+	oldAppDirName  = "runpod-vllm-proxy"
 	storedKeyName     = "runpod.key"
 	storedHFTokenName = "hf.token"
 	settingsFileName  = "settings.json"
@@ -75,7 +76,7 @@ func Load() Env {
 
 func (e Env) RequireRunpod() error {
 	if e.RunpodAPIKey == "" {
-		return fmt.Errorf("not connected — run `runhug-cli connect` or set %s", EnvRunpodAPIKey)
+		return fmt.Errorf("not connected — run `runhug connect` or set %s", EnvRunpodAPIKey)
 	}
 	return nil
 }
@@ -104,8 +105,8 @@ func XDGConfigHome() (string, error) {
 	return filepath.Join(home, ".config"), nil
 }
 
-// Dir is the preferred config directory: ~/.config/runhug-cli
-// (or $XDG_CONFIG_HOME/runhug-cli). Env overrides point at a registry file;
+// Dir is the preferred config directory: ~/.config/runhug
+// (or $XDG_CONFIG_HOME/runhug). Env overrides point at a registry file;
 // Dir is that file's parent.
 func Dir() (string, error) {
 	if override := ConfigPathOverride(); override != "" {
@@ -118,7 +119,8 @@ func Dir() (string, error) {
 	return filepath.Join(base, appDirName), nil
 }
 
-// LegacyDirs lists prior config directories used by runpod-vllm-proxy.
+// LegacyDirs lists prior config directories (runhug-cli, then runpod-vllm-proxy).
+// Order prefers the more recent predecessor so keys/registry migrate from there first.
 func LegacyDirs() []string {
 	var out []string
 	seen := map[string]bool{}
@@ -129,11 +131,15 @@ func LegacyDirs() []string {
 		seen[p] = true
 		out = append(out, p)
 	}
-	if home, err := os.UserHomeDir(); err == nil {
-		add(filepath.Join(home, "Library", "Application Support", oldAppDirName))
+	if base, err := XDGConfigHome(); err == nil {
+		add(filepath.Join(base, prevAppDirName))
 	}
 	if dir, err := os.UserConfigDir(); err == nil {
+		add(filepath.Join(dir, prevAppDirName))
 		add(filepath.Join(dir, oldAppDirName))
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		add(filepath.Join(home, "Library", "Application Support", oldAppDirName))
 	}
 	return out
 }
@@ -290,7 +296,7 @@ func loadStoredHFToken() string {
 	return SanitizeAPIKey(string(raw))
 }
 
-// Settings holds optional CLI defaults under ~/.config/runhug-cli/settings.json.
+// Settings holds optional CLI defaults under ~/.config/runhug/settings.json.
 type Settings struct {
 	NoColor        bool   `json:"no_color"`
 	UpdateLimit    *int   `json:"update_limit,omitempty"` // Hub update row cap; 0=unlimited; nil=default

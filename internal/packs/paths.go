@@ -5,18 +5,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/config"
 )
 
 const (
 	EnvPacksRepo   = "RUNHUG_PACKS_REPO"
 	EnvIndexLimit  = "RUNHUG_INDEX_LIMIT"
-	DefaultRepo    = "adamsiwiec1/runhug-cli"
+	DefaultRepo    = "adamsiwiec1/runhug"
 	packsSubdir    = "packs"
 	installedName  = "installed.json"
 )
 
-// PacksDir is ~/.config/runhug-cli/packs (or under RUNHUG_CONFIG parent).
+// PacksDir is ~/.config/runhug/packs (or under RUNHUG_CONFIG parent).
 func PacksDir() (string, error) {
 	dir, err := config.Dir()
 	if err != nil {

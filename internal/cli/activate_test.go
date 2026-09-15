@@ -3,8 +3,8 @@ package cli
 import (
 	"testing"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/runtime"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/runtime"
 )
 
 func TestSpecFromOverride(t *testing.T) {

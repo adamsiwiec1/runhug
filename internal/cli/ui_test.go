@@ -3,8 +3,8 @@ package cli
 import (
 	"testing"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/find"
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/find"
+	"github.com/adamsiwiec1/runhug/internal/hf"
 )
 
 func TestSortHubModelsByLikes(t *testing.T) {

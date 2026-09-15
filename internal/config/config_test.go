@@ -193,7 +193,7 @@ func TestDirUsesXDGConfigHome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(base, "runhug-cli")
+	want := filepath.Join(base, "runhug")
 	if dir != want {
 		t.Fatalf("got %q want %q", dir, want)
 	}
@@ -209,7 +209,7 @@ func TestDirFallsBackToHomeDotConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(home, ".config", "runhug-cli")
+	want := filepath.Join(home, ".config", "runhug")
 	if dir != want {
 		t.Fatalf("got %q want %q", dir, want)
 	}
@@ -369,5 +369,57 @@ func TestSettingsLoadSaveNoColor(t *testing.T) {
 	}
 	if LoadSettings().NoColor {
 		t.Fatal("expected false")
+	}
+}
+
+func TestMigrateFileIfMissingFromRunhugCLI(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv(EnvConfig, "")
+	t.Setenv(EnvConfigLegacy, "")
+
+	xdg := os.Getenv("XDG_CONFIG_HOME")
+	prev := filepath.Join(xdg, "runhug-cli")
+	if err := os.MkdirAll(prev, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(prev, "runpod.key"), []byte("from-runhug-cli\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	dir, err := Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantDir := filepath.Join(xdg, "runhug")
+	if dir != wantDir {
+		t.Fatalf("Dir() = %q, want %q", dir, wantDir)
+	}
+	if err := MigrateFileIfMissing(dir, "runpod.key"); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "runpod.key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "from-runhug-cli\n" {
+		t.Fatalf("migrated key = %q", raw)
+	}
+	if Load().RunpodAPIKey != "from-runhug-cli" {
+		t.Fatalf("Load after migrate = %q", Load().RunpodAPIKey)
+	}
+}
+
+func TestLegacyDirsPrefersRunhugCLI(t *testing.T) {
+	home := t.TempDir()
+	xdg := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	dirs := LegacyDirs()
+	if len(dirs) == 0 {
+		t.Fatal("expected legacy dirs")
+	}
+	if !strings.HasSuffix(dirs[0], "runhug-cli") {
+		t.Fatalf("first legacy should be runhug-cli, got %q", dirs[0])
 	}
 }

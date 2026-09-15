@@ -1,4 +1,4 @@
-module github.com/adamsiwiec1/runhug-cli
+module github.com/adamsiwiec1/runhug
 
 go 1.26.3
 

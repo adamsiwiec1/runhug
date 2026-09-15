@@ -15,7 +15,7 @@ func TestLiveStreamToolsAgainstRunpod(t *testing.T) {
 	if os.Getenv("RUNHUG_LIVE_PROBE") != "1" {
 		t.Skip("set RUNHUG_LIVE_PROBE=1")
 	}
-	keyPath := filepath.Join(os.Getenv("HOME"), ".config/runhug-cli/runpod.key")
+	keyPath := filepath.Join(os.Getenv("HOME"), ".config/runhug/runpod.key")
 	keyB, err := os.ReadFile(keyPath)
 	if err != nil {
 		t.Fatal(err)

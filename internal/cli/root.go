@@ -126,7 +126,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  New here?        runhug wizard")
 	fmt.Fprintln(w, "  Keys / tokens    runhug connect · runhug connect hf  (env overrides stored)")
 	fmt.Fprintln(w, "  Search           local SQLite index by default; --online/--hub for live Hub")
-	fmt.Fprintln(w, "  Docs             https://adamsiwiec1.github.io/runhug-cli/")
+	fmt.Fprintln(w, "  Docs             https://adamsiwiec1.github.io/runhug/")
 }
 
 func newFlagSet(name string) *flag.FlagSet {

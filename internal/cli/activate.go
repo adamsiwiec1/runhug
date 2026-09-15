@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/local"
-	"github.com/adamsiwiec1/runhug-cli/internal/runtime"
-	"github.com/adamsiwiec1/runhug-cli/internal/store"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/local"
+	"github.com/adamsiwiec1/runhug/internal/runtime"
+	"github.com/adamsiwiec1/runhug/internal/store"
 )
 
 type localSpec struct {
@@ -161,11 +161,11 @@ func printInstalled(m store.Model) {
 	}
 	fmt.Fprintln(w)
 	commands(w, "Next:",
-		`runhug-cli search -q "top penetration testing models"`,
-		"runhug-cli inspect "+m.HFRepo,
-		"runhug-cli connect",
-		"runhug-cli deploy "+m.HFRepo,
-		"runhug-cli proxy",
+		`runhug search -q "top penetration testing models"`,
+		"runhug inspect "+m.HFRepo,
+		"runhug connect",
+		"runhug deploy "+m.HFRepo,
+		"runhug proxy",
 	)
 }
 

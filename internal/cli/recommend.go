@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/recommend"
-	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
-	"github.com/adamsiwiec1/runhug-cli/internal/sizing"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/recommend"
+	"github.com/adamsiwiec1/runhug/internal/runpod"
+	"github.com/adamsiwiec1/runhug/internal/sizing"
 )
 
 func cmdRecommend(args []string) error {
@@ -38,7 +38,7 @@ func cmdRecommend(args []string) error {
 
 	query := resolveSearchQuery(queryFlag, strings.Join(fs.Args(), " "))
 	if strings.TrimSpace(query) == "" {
-		return fmt.Errorf("usage: runhug-cli recommend \"best model for RAG on a 16GB laptop\"\n       runhug-cli recommend -q \"…\" --candidates 8\n       runhug-cli recommend gpu <org/model>")
+		return fmt.Errorf("usage: runhug recommend \"best model for RAG on a 16GB laptop\"\n       runhug recommend -q \"…\" --candidates 8\n       runhug recommend gpu <org/model>")
 	}
 
 	n := *candidates
@@ -189,9 +189,9 @@ func cmdRecommend(args []string) error {
 	}
 	if len(scored) > 0 {
 		commands(os.Stdout, "Next:",
-			"runhug-cli inspect "+scored[0].Model.RepoID(),
-			"runhug-cli recommend gpu "+scored[0].Model.RepoID(),
-			"runhug-cli deploy "+scored[0].Model.RepoID()+" --dry-run",
+			"runhug inspect "+scored[0].Model.RepoID(),
+			"runhug recommend gpu "+scored[0].Model.RepoID(),
+			"runhug deploy "+scored[0].Model.RepoID()+" --dry-run",
 		)
 	}
 	return nil
@@ -208,7 +208,7 @@ func cmdRecommendGPU(args []string) error {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: runhug-cli recommend gpu <org/model>")
+		return fmt.Errorf("usage: runhug recommend gpu <org/model>")
 	}
 	modelID := fs.Arg(0)
 
@@ -295,11 +295,11 @@ func cmdRecommendGPU(args []string) error {
 		fmt.Fprintln(os.Stdout)
 	}
 	commands(os.Stdout, "Next:",
-		"runhug-cli inspect "+model.RepoID(),
-		"runhug-cli recommend gpu "+model.RepoID()+" --estimate",
-		"runhug-cli deploy "+model.RepoID()+" --dry-run",
-		"runhug-cli deploy "+model.RepoID()+" --dry-run --estimate",
-		"runhug-cli gpus --min-vram "+fmt.Sprintf("%.0f", adv.RequiredGB),
+		"runhug inspect "+model.RepoID(),
+		"runhug recommend gpu "+model.RepoID()+" --estimate",
+		"runhug deploy "+model.RepoID()+" --dry-run",
+		"runhug deploy "+model.RepoID()+" --dry-run --estimate",
+		"runhug gpus --min-vram "+fmt.Sprintf("%.0f", adv.RequiredGB),
 	)
 	return nil
 }

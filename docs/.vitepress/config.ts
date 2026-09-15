@@ -1,6 +1,6 @@
 import { defineConfig } from "vitepress";
 
-const [owner, repoName] = (process.env.GITHUB_REPOSITORY ?? "adamsiwiec1/runhug-cli").split("/");
+const [owner, repoName] = (process.env.GITHUB_REPOSITORY ?? "adamsiwiec1/runhug").split("/");
 const repo = `https://github.com/${owner}/${repoName}`;
 const base = `/${repoName}/`;
 

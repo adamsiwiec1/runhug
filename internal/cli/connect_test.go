@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/config"
 )
 
 func TestConnectHelp(t *testing.T) {

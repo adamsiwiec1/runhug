@@ -10,7 +10,7 @@ runhug init
 ```
 
 When offered, pick categories (numbers, ranges, `all`, or `none`). Packs
-download from the latest GitHub Release of `adamsiwiec1/runhug-cli`
+download from the latest GitHub Release of `adamsiwiec1/runhug`
 (`RUNHUG_PACKS_REPO` overrides), verify SHA-256 from `index-manifest.json`,
 store under `~/.config/runhug/packs/`, and **merge** into
 `~/.config/runhug/models.db`.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/hf"
 )
 
 type hubView struct {
@@ -65,9 +65,9 @@ func printHubResults(w io.Writer, v hubView) {
 		}
 		fmt.Fprintln(w)
 		commands(w, "Try a broader query, or refresh the index:",
-			`runhug-cli update`,
-			`runhug-cli search instruct --sort likes --limit 20`,
-			`runhug-cli search --online -q "qwen" --limit 20`,
+			`runhug update`,
+			`runhug search instruct --sort likes --limit 20`,
+			`runhug search --online -q "qwen" --limit 20`,
 		)
 		return
 	}
@@ -154,8 +154,8 @@ func printHubResults(w io.Writer, v hubView) {
 	id := v.Models[shown-1].RepoID()
 	open := []string{
 		hubLink(id),
-		"runhug-cli inspect " + id,
-		"runhug-cli deploy " + id,
+		"runhug inspect " + id,
+		"runhug deploy " + id,
 	}
 	if v.Command != "" {
 		open = append(open, v.Command+" --sort likes --limit 20")
@@ -246,10 +246,10 @@ func quotedSearchCmd(query string) string {
 
 func quotedCmd(name, query string) string {
 	if query == "" {
-		return "runhug-cli " + name
+		return "runhug " + name
 	}
 	if strings.ContainsAny(query, " \t\"'") {
-		return fmt.Sprintf("runhug-cli %s %q", name, query)
+		return fmt.Sprintf("runhug %s %q", name, query)
 	}
-	return "runhug-cli " + name + " " + query
+	return "runhug " + name + " " + query
 }

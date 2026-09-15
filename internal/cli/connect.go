@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/runpod"
 )
 
 // runpodAPIKeysURL is the official console page for creating or copying API keys.
@@ -171,10 +171,10 @@ func printConsoleURL(w io.Writer) {
 
 func printConnectNext() {
 	commands(os.Stdout, "Next:",
-		"runhug-cli list",
-		"runhug-cli gpus",
-		"runhug-cli deploy Qwen/Qwen2.5-7B-Instruct",
-		"runhug-cli proxy",
+		"runhug list",
+		"runhug gpus",
+		"runhug deploy Qwen/Qwen2.5-7B-Instruct",
+		"runhug proxy",
 	)
 }
 
@@ -208,7 +208,7 @@ func cmdDisconnect(args []string) error {
 
 func cmdLogin(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: runhug-cli login hf")
+		return fmt.Errorf("usage: runhug login hf")
 	}
 	switch strings.ToLower(args[0]) {
 	case "hf", "huggingface", "hub":
@@ -220,7 +220,7 @@ func cmdLogin(args []string) error {
 
 func cmdHF(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: runhug-cli hf login | runhug-cli hf disconnect")
+		return fmt.Errorf("usage: runhug hf login | runhug hf disconnect")
 	}
 	switch strings.ToLower(args[0]) {
 	case "login", "connect":

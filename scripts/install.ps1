@@ -1,9 +1,10 @@
-# Install the latest runhug Windows amd64 release from adamsiwiec1/runhug-cli.
-# Asset is a bare .exe: runhug-cli_<ver>_windows_amd64.exe → runhug.exe
-# Usage: irm https://raw.githubusercontent.com/adamsiwiec1/runhug-cli/main/scripts/install.ps1 | iex
+# Install the latest runhug Windows amd64 release from adamsiwiec1/runhug.
+# Next release asset: runhug_<ver>_windows_amd64.exe → runhug.exe
+# Fallback: older tags may still publish runhug-cli_<ver>_windows_amd64.exe
+# Usage: irm https://raw.githubusercontent.com/adamsiwiec1/runhug/main/scripts/install.ps1 | iex
 $ErrorActionPreference = "Stop"
-$Repo = "adamsiwiec1/runhug-cli"
-$AssetPrefix = "runhug-cli_"
+$Repo = "adamsiwiec1/runhug"
+$AssetPrefixes = @("runhug_", "runhug-cli_")
 $BinName = "runhug.exe"
 
 $api = "https://api.github.com/repos/$Repo/releases/latest"
@@ -11,10 +12,15 @@ $headers = @{ Accept = "application/vnd.github+json"; "User-Agent" = "runhug-ins
 $release = Invoke-RestMethod -Uri $api -Headers $headers
 $tag = $release.tag_name
 $ver = $tag.TrimStart("v")
-$assetName = "${AssetPrefix}${ver}_windows_amd64.exe"
-$asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+
+$asset = $null
+foreach ($prefix in $AssetPrefixes) {
+  $assetName = "${prefix}${ver}_windows_amd64.exe"
+  $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+  if ($asset) { break }
+}
 if (-not $asset) {
-  throw "Asset not found: $assetName (tag $tag)"
+  throw "Asset not found for prefixes $($AssetPrefixes -join ', ') (tag $tag)"
 }
 
 $destDir = Join-Path $env:LOCALAPPDATA "runhug\bin"

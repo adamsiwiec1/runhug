@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/runtime"
+	"github.com/adamsiwiec1/runhug/internal/runtime"
 )
 
 const (

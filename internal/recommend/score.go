@@ -5,8 +5,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/sizing"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/sizing"
 )
 
 // Known Hub publishers. Likes are Hub "stars".

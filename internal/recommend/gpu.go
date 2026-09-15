@@ -3,9 +3,9 @@ package recommend
 import (
 	"fmt"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
-	"github.com/adamsiwiec1/runhug-cli/internal/sizing"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/runpod"
+	"github.com/adamsiwiec1/runhug/internal/sizing"
 )
 
 // GPUAdvice is a VRAM estimate + suggested serverless pool.

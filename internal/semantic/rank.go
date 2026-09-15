@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/hf"
 )
 
 // Rerank orders models by cosine similarity of query vs SearchableText
