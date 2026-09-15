@@ -11,9 +11,8 @@
 ## Checklist
 
 - [ ] `go test ./...` passes
-- [ ] `npm run docs:build` passes (or this PR does not touch docs)
 - [ ] `CHANGELOG.md` `## [Unreleased]` has a bullet for user-visible behavior (or this PR is docs/chore-only)
-- [ ] Docs are updated where behavior changed
+- [ ] README / root docs are updated where behavior changed
 - [ ] No secrets, tokens, or personal data committed
 - [ ] Attribution preserved and license compatibility verified for reused code
 

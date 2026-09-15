@@ -18,23 +18,14 @@ go vet ./...
 go build -o bin/runhug ./cmd/runhug
 ```
 
-Docs (optional — Node 22, same floor as the FOSS template):
-
-```bash
-npm ci
-npm run docs:dev
-npm run docs:build
-```
-
 Do not commit secrets, credentials, `.env` files, registry files that contain
 API keys, or personal data. `RUNPOD_API_KEY` and `HF_TOKEN` stay in the
 environment.
 
 ## Documentation
 
-`docs/guide/` is task-oriented. `docs/reference/` is lasting fact.
-GitHub-conventional files stay at the repository root. Update the docs in the
-same pull request as the behavior they describe.
+User-facing docs live in [README.md](README.md). Update the README (or other
+root docs) in the same pull request as the behavior they describe.
 
 ## Changelog
 

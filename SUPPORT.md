@@ -6,7 +6,7 @@ runhug is volunteer-maintained. Please use the right channel:
 | --- | --- |
 | Bug or unexpected behavior | New issue using the **Bug report** form |
 | Feature idea | New issue using the **Feature request** form |
-| How do I…? | Read the [docs](docs/guide/index.md), then open a question issue |
+| How do I…? | Read the [README](README.md), then open a question issue |
 | Security vulnerability | [SECURITY.md](SECURITY.md) — never a public issue |
 | Conduct report | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 

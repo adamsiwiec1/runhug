@@ -6,6 +6,7 @@
 set -euo pipefail
 
 REPO="adamsiwiec1/runhug"
+# Optional: TAG=v0.1.3 or VERSION=0.1.3 to pin a release (default: latest)
 # Prefer new asset names; fall back to pre-rename prefix for older releases.
 ASSET_PREFIXES=("runhug_" "runhug-cli_")
 BIN_NAME="runhug"
@@ -37,9 +38,21 @@ case "$arch" in
   *) die "unsupported arch: $arch (supported: amd64, arm64)" ;;
 esac
 
-echo "Detecting latest release for ${os}/${arch}…"
+if [ -n "${TAG:-}" ]; then
+  tag="$TAG"
+elif [ -n "${VERSION:-}" ]; then
+  tag="v${VERSION#v}"
+else
+  tag=""
+fi
 
-api="https://api.github.com/repos/${REPO}/releases/latest"
+if [ -n "$tag" ]; then
+  echo "Using release ${tag} for ${os}/${arch}…"
+  api="https://api.github.com/repos/${REPO}/releases/tags/${tag}"
+else
+  echo "Detecting latest release for ${os}/${arch}…"
+  api="https://api.github.com/repos/${REPO}/releases/latest"
+fi
 json="$(curl -fsSL -H 'Accept: application/vnd.github+json' "$api")" || die "failed to fetch $api"
 
 tag="$(printf '%s' "$json" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
