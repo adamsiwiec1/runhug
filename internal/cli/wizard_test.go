@@ -113,8 +113,11 @@ func TestUsageMentionsWizard(t *testing.T) {
 	if !strings.Contains(s, "wizard") {
 		t.Fatalf("usage missing wizard\n%s", s)
 	}
-	if !strings.Contains(s, "guide") {
-		t.Fatalf("usage missing guide alias mention\n%s", s)
+	// Aliases (guide/guided/setup) stay off root help; still registered in Run().
+	for _, leak := range []string{"(guide", "guided, setup", "aliases:"} {
+		if strings.Contains(s, leak) {
+			t.Fatalf("root help must not dump wizard aliases (%q)\n%s", leak, s)
+		}
 	}
 }
 

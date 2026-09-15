@@ -93,4 +93,9 @@ func TestPrintUsageOmitsEnvDump(t *testing.T) {
 	if !strings.Contains(out, "get started: runhug wizard") {
 		t.Fatalf("expected quiet get-started line\n%s", out)
 	}
+	for _, leak := range []string{"gpus / import", "(guide", "(deployments)", "(serve)", "aliases:"} {
+		if strings.Contains(out, leak) {
+			t.Fatalf("root help must not include clutter %q\n%s", leak, out)
+		}
+	}
 }
