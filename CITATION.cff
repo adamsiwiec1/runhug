@@ -1,11 +1,11 @@
 cff-version: 1.2.0
-title: runhug-cli
+title: runhug
 message: If you use this software, please cite it using these metadata.
 type: software
 authors:
   - family-names: Siwiec
     given-names: Adam
-repository-code: https://github.com/adamsiwiec1/runhug-cli
+repository-code: https://github.com/adamsiwiec1/runhug
 license: MIT
 version: 0.1.0
 abstract: >-

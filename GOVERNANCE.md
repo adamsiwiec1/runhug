@@ -1,6 +1,6 @@
 # Governance
 
-runhug-cli is a small open-source project.
+runhug is a small open-source project.
 
 ## Roles
 

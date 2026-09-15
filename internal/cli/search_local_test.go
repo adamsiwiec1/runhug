@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/index"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/index"
 )
 
 func stubNoHub(t *testing.T) {
@@ -140,7 +140,7 @@ func TestSearchModelsMissingIndexSuggestsUpdate(t *testing.T) {
 		t.Fatal("expected error")
 	}
 	msg := err.Error()
-	for _, want := range []string{"runhug-cli update", "runhug-cli init", "--online", "--hub"} {
+	for _, want := range []string{"runhug update", "runhug init", "--online", "--hub"} {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("missing %q in %q", want, msg)
 		}

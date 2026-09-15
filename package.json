@@ -1,16 +1,16 @@
 {
-  "name": "runhug-cli",
+  "name": "runhug",
   "private": true,
   "version": "0.1.0",
   "description": "Find the best Hugging Face model, deploy on Runpod in minutes, run it for pennies.",
   "license": "MIT",
-  "homepage": "https://adamsiwiec1.github.io/runhug-cli/",
+  "homepage": "https://adamsiwiec1.github.io/runhug/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/adamsiwiec1/runhug-cli.git"
+    "url": "git+https://github.com/adamsiwiec1/runhug.git"
   },
   "bugs": {
-    "url": "https://github.com/adamsiwiec1/runhug-cli/issues"
+    "url": "https://github.com/adamsiwiec1/runhug/issues"
   },
   "type": "module",
   "engines": {

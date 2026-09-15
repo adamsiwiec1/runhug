@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/index"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/index"
 )
 
 // Default quality filters for Hub pack builds (likes≥3 AND downloads≥100).

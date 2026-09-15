@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/version"
+	"github.com/adamsiwiec1/runhug/internal/version"
 )
 
 func Run(args []string) error {
@@ -58,6 +58,10 @@ func Run(args []string) error {
 		return cmdURL(rest)
 	case "proxy", "serve":
 		return cmdProxy(rest)
+	case "run":
+		return cmdRun(rest)
+	case "start":
+		return cmdStart(rest)
 	case "delete":
 		return cmdDelete(rest)
 	case "status":
@@ -81,7 +85,7 @@ func printUsage(w io.Writer) {
 	printBanner(w)
 	printTagline(w)
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  runhug-cli <command> [flags]")
+	fmt.Fprintln(w, "  runhug <command> [flags]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, bold("Setup"))
 	fmt.Fprintln(w, "  wizard             Interactive guided setup (aliases: guide, guided, setup)")
@@ -92,7 +96,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, bold("Search & index"))
 	fmt.Fprintln(w, "  search [query]     Local SQLite index (optional embeddings); --online/--hub for live Hub")
-	fmt.Fprintln(w, "  recommend [query]  Shortlist + optional LLM advisor; GPU pool hints (id = HF repo id PK)")
+	fmt.Fprintln(w, "  recommend [query]  Shortlist (+ models on this machine) + optional LLM advisor; GPU pool hints")
 	fmt.Fprintln(w, "  recommend gpu <m>  Suggest Runpod GPU pool / VRAM for one model")
 	fmt.Fprintln(w, "  inspect <model>    Hub card, params, VRAM estimate")
 	fmt.Fprintln(w, "  update             Refresh index (pack deltas / Hub since watermark)")
@@ -106,6 +110,10 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  proxy              OpenAI proxy on 127.0.0.1:8080/v1  (alias: serve)")
 	fmt.Fprintln(w, "  gpus / import / delete / use / url / status")
 	fmt.Fprintln(w)
+	fmt.Fprintln(w, bold("Chat & agents"))
+	fmt.Fprintln(w, "  run [model]        Interactive chat REPL against an OpenAI endpoint (-q for one-shot)")
+	fmt.Fprintln(w, "  start <agent>      Launch coding agent via local Anthropic→OpenAI bridge (claude; codex stub)")
+	fmt.Fprintln(w)
 	fmt.Fprintln(w, bold("Local"))
 	fmt.Fprintln(w, "  local add          Models already on this machine; --pick N searches the local index")
 	fmt.Fprintln(w, "  local setup        Show / install Ollama, llama.cpp, or MLX")
@@ -114,27 +122,11 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  config             Show config dir + settings")
 	fmt.Fprintln(w, "  config get|set     no_color, update_limit, advisor_base_url, advisor_model")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, bold("Search stack (honest)"))
-	fmt.Fprintln(w, "  Default search is local-only: merged packs → ~/.config/runhug-cli/models.db")
-	fmt.Fprintln(w, "  (or bundled data/models.db). Packs kept under ~/.config/runhug-cli/packs/.")
-	fmt.Fprintln(w, "  models.id TEXT PRIMARY KEY is the Hugging Face repo id (unique key).")
-	fmt.Fprintln(w, "  update applies deltas / Hub since watermark; --packs replaces from Releases.")
-	fmt.Fprintln(w, "  update --limit / RUNHUG_UPDATE_LIMIT / config update_limit (default 2000; 0=unlimited).")
-	fmt.Fprintln(w, "  Hub delta: new models need likes≥3 & downloads≥100; existing ids always refresh.")
-	fmt.Fprintln(w, "  search never calls Hub unless --online / --hub.")
-	fmt.Fprintln(w, "  recommend shortlists locally then optional OpenAI-compatible /v1/chat/completions.")
-	fmt.Fprintln(w, "  Embedding rerank via Ollama nomic-embed-text (optional; local/cached).")
-	fmt.Fprintln(w, "  --semantic on by default; --keyword / --no-semantic for lexical-only.")
-	fmt.Fprintln(w, "  Not a Hub-wide vector database. No local instruct model required for search.")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, bold("Environment"))
-	fmt.Fprintln(w, "  HF_TOKEN           Wins over stored hf.token (gated Hub / embeddings)")
-	fmt.Fprintln(w, "  RUNPOD_API_KEY     Wins over stored runpod.key")
-	fmt.Fprintln(w, "  RUNHUG_CONFIG      Override registry path (RVP_CONFIG still accepted)")
-	fmt.Fprintln(w, "  RUNHUG_PACKS_REPO  GitHub owner/repo for index packs (default adamsiwiec1/runhug-cli)")
-	fmt.Fprintln(w, "  RUNHUG_INDEX_LIMIT Cap rows/category when building packs (0/unset = unlimited)")
-	fmt.Fprintln(w, "  RUNHUG_UPDATE_LIMIT Cap Hub delta upserts on update (0=unlimited; default 2000)")
-	fmt.Fprintln(w, "  NO_COLOR           Disable ANSI colors (or: config set no_color true)")
+	fmt.Fprintln(w, bold("Tips"))
+	fmt.Fprintln(w, "  New here?        runhug wizard")
+	fmt.Fprintln(w, "  Keys / tokens    runhug connect · runhug connect hf  (env overrides stored)")
+	fmt.Fprintln(w, "  Search           local SQLite index by default; --online/--hub for live Hub")
+	fmt.Fprintln(w, "  Docs             https://adamsiwiec1.github.io/runhug/")
 }
 
 func newFlagSet(name string) *flag.FlagSet {

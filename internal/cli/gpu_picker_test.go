@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
+	"github.com/adamsiwiec1/runhug/internal/runpod"
 )
 
 func sampleGPURows() []gpuPickRow {

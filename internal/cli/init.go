@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/runtime"
-	"github.com/adamsiwiec1/runhug-cli/internal/semantic"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/runtime"
+	"github.com/adamsiwiec1/runhug/internal/semantic"
 )
 
 const defaultEmbedModel = "nomic-embed-text"
@@ -73,7 +73,7 @@ func initSearchStack(yes bool, wantRuntime string, offerIndex bool) error {
 	if env.HFToken != "" {
 		printKV(os.Stdout, "hf token", green("set (HF Inference embeddings available)"))
 	} else {
-		printKV(os.Stdout, "hf token", dim("not set — runhug-cli connect hf for cloud embeddings"))
+		printKV(os.Stdout, "hf token", dim("not set — runhug connect hf for cloud embeddings"))
 	}
 	fmt.Fprintln(os.Stdout)
 
@@ -93,11 +93,11 @@ func initSearchStack(yes bool, wantRuntime string, offerIndex bool) error {
 	}
 
 	commands(os.Stdout, "Next:",
-		`runhug-cli search -q "top penetration testing models" --limit 5`,
-		`runhug-cli search -q "animated cartoon generation models" --limit 5`,
-		"runhug-cli update",
-		"runhug-cli connect",
-		"runhug-cli deploy <org/model>",
+		`runhug search -q "top penetration testing models" --limit 5`,
+		`runhug search -q "animated cartoon generation models" --limit 5`,
+		"runhug update",
+		"runhug connect",
+		"runhug deploy <org/model>",
 	)
 	return nil
 }
@@ -141,7 +141,7 @@ func initEnsureEmbedder(yes bool, wantRuntime string, ollamaUp bool) error {
 			if ok {
 				if err := runtime.PullOllama(bin, defaultEmbedModel); err != nil {
 					fmt.Fprintf(os.Stderr, "%s\n", yellow(err.Error()))
-					fmt.Fprintln(os.Stdout, dim("Falling back: runhug-cli connect hf  (HF Inference embeddings)"))
+					fmt.Fprintln(os.Stdout, dim("Falling back: runhug connect hf  (HF Inference embeddings)"))
 					return nil
 				}
 				fmt.Fprintf(os.Stdout, "%s  %s\n\n", green("Ready"), bold(defaultEmbedModel+" (ollama)"))
@@ -153,8 +153,8 @@ func initEnsureEmbedder(yes bool, wantRuntime string, ollamaUp bool) error {
 	fmt.Fprintln(os.Stdout, bold("No local embedder yet."))
 	commands(os.Stdout, "Pick one:",
 		"ollama pull "+defaultEmbedModel,
-		"runhug-cli connect hf",
-		"runhug-cli search -q \"…\" --keyword   # lexical-only",
+		"runhug connect hf",
+		"runhug search -q \"…\" --keyword   # lexical-only",
 	)
 	if yes {
 		return nil
@@ -197,7 +197,7 @@ func initOfferIndex(yes bool) error {
 		}
 	}
 	if !ok {
-		fmt.Fprintln(os.Stdout, dim("Skip packs — run: runhug-cli init  (or update)"))
+		fmt.Fprintln(os.Stdout, dim("Skip packs — run: runhug init  (or update)"))
 		fmt.Fprintln(os.Stdout)
 		return nil
 	}

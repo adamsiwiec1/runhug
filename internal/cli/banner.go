@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/version"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/version"
 )
 
 // bannerASCII is a compact ≤80-col block banner spelling RUNHUG.

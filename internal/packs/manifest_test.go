@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/index"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/index"
 )
 
 func TestParseManifest(t *testing.T) {

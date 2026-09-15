@@ -5,7 +5,7 @@ This directory contains a pre-built SQLite search index of Hugging Face models. 
 ## Usage
 
 The CLI automatically uses this bundled index when:
-1. No user-local index exists at `~/.config/runhug-cli/models.db`
+1. No user-local index exists at `~/.config/runhug/models.db`
 2. The bundled index is found (relative to executable or in working directory)
 
 ## Updating
@@ -14,16 +14,16 @@ Users can create their own fresh index with:
 
 ```bash
 # Create/update user-local index with latest models
-runhug-cli update
+runhug update
 ```
 
 Once a user-local index exists, it takes precedence over the bundled index.
 
 ## Search Hierarchy
 
-1. **User-local index** (`~/.config/runhug-cli/models.db`) — highest priority
+1. **User-local index** (`~/.config/runhug/models.db`) — highest priority
 2. **Bundled index** (`data/models.db`) — fallback if no user index
-3. **No index** — search tells you to run `runhug-cli update` (or `init`). It does **not** call the Hub.
+3. **No index** — search tells you to run `runhug update` (or `init`). It does **not** call the Hub.
 4. **`--online` / `--hub`** — optional live Hub search (rate-limited; set `HF_TOKEN`)
 
 ## Contents
@@ -40,8 +40,8 @@ To rebuild the bundled index:
 
 ```bash
 # From repo root
-./bin/runhug-cli update --force
-cp ~/.config/runhug-cli/models.db data/models.db
+./bin/runhug update --force
+cp ~/.config/runhug/models.db data/models.db
 git add data/models.db
 git commit -m "Update bundled search index"
 ```
@@ -63,8 +63,8 @@ Large category databases are **not** committed here. They are built by
 - `index-manifest.json`
 - `index-<category>.db`
 
-`runhug-cli init` downloads selected packs, verifies `sha256`, keeps copies
-under `~/.config/runhug-cli/packs/`, and merges into `models.db`.
+`runhug init` downloads selected packs, verifies `sha256`, keeps copies
+under `~/.config/runhug/packs/`, and merges into `models.db`.
 
 v1 packs are capped with `RUNHUG_INDEX_LIMIT` (default 5000 rows/category) so
 CI stays practical; the manifest/schema support larger packs later.

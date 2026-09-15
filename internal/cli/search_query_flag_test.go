@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/hf"
 )
 
 func TestResolveSearchQueryPrefersFlag(t *testing.T) {
@@ -69,7 +69,7 @@ func TestSearchHelpMentionsQueryAndDescriptions(t *testing.T) {
 }
 
 func TestQuotedSearchCmd(t *testing.T) {
-	if got := quotedSearchCmd("qwen"); got != "runhug-cli search qwen" {
+	if got := quotedSearchCmd("qwen"); got != "runhug search qwen" {
 		t.Fatalf("%s", got)
 	}
 	if got := quotedSearchCmd("instruct coder"); !strings.Contains(got, `search "instruct coder"`) {

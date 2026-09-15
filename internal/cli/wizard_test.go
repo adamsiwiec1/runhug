@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/hf"
 )
 
 func TestWizardAliasesRegistered(t *testing.T) {
@@ -59,8 +59,8 @@ func TestWizardChecklistContent(t *testing.T) {
 		"Live deploy",
 		"Proxy",
 		"Never auto-creates a live Runpod endpoint",
-		"runhug-cli init",
-		"runhug-cli deploy <org/model> --dry-run",
+		"runhug init",
+		"runhug deploy <org/model> --dry-run",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("checklist missing %q\n%s", want, s)

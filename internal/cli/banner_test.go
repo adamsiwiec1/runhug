@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/config"
 )
 
 func TestShowBannerRespectsNoColor(t *testing.T) {
@@ -70,5 +70,23 @@ func TestBannerASCIIFits80Cols(t *testing.T) {
 		if len(line) > 80 {
 			t.Fatalf("banner line too wide (%d): %q", len(line), line)
 		}
+	}
+}
+
+func TestPrintUsageOmitsEnvDump(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	var buf bytes.Buffer
+	printUsage(&buf)
+	out := buf.String()
+	if strings.Contains(out, "Environment") {
+		t.Fatal("default help must not dump Environment wall")
+	}
+	for _, leak := range []string{"HF_TOKEN", "RUNPOD_API_KEY", "RUNHUG_INDEX_LIMIT"} {
+		if strings.Contains(out, leak) {
+			t.Fatalf("default help must not list env %q", leak)
+		}
+	}
+	if !strings.Contains(out, "Tips") || !strings.Contains(out, "runhug wizard") {
+		t.Fatalf("expected short Tips section\n%s", out)
 	}
 }

@@ -6,10 +6,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/index"
-	"github.com/adamsiwiec1/runhug-cli/internal/semantic"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/index"
+	"github.com/adamsiwiec1/runhug/internal/semantic"
 )
 
 type searchRequest struct {
@@ -44,7 +44,7 @@ var (
 )
 
 func errNoSearchIndex() error {
-	return fmt.Errorf("no local search index found.\nRun `runhug-cli update` or `runhug-cli init` to build one from Hugging Face.\nOr pass --online / --hub for a live Hub search (rate-limited; set HF_TOKEN).")
+	return fmt.Errorf("no local search index found.\nRun `runhug update` or `runhug init` to build one from Hugging Face.\nOr pass --online / --hub for a live Hub search (rate-limited; set HF_TOKEN).")
 }
 
 func resolveSearchIndex() (path, source string) {

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/version"
+	"github.com/adamsiwiec1/runhug/internal/version"
 )
 
 const BaseURL = "https://huggingface.co"

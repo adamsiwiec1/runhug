@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/recommend"
-	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
-	"github.com/adamsiwiec1/runhug-cli/internal/store"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/recommend"
+	"github.com/adamsiwiec1/runhug/internal/runpod"
+	"github.com/adamsiwiec1/runhug/internal/store"
 )
 
 func cmdWizard(args []string) error {
@@ -47,27 +47,27 @@ func wizardChecklist(w io.Writer) error {
 		{
 			title: "2. Init search stack",
 			note:  "Embedder + category packs (local SQLite search).",
-			cmds:  []string{"runhug-cli init"},
+			cmds:  []string{"runhug init"},
 			done:  fileExists(indexFilePath()) || fileExists(bundledIndexPath()),
 		},
 		{
 			title: "3. HF token",
 			note:  "Optional — gated Hub cards + cloud embeddings.",
-			cmds:  []string{"runhug-cli connect hf"},
+			cmds:  []string{"runhug connect hf"},
 			done:  env.HFToken != "",
 		},
 		{
 			title: "4. Runpod key",
 			note:  "Required before live deploy.",
-			cmds:  []string{"runhug-cli connect"},
+			cmds:  []string{"runhug connect"},
 			done:  env.Connected(),
 		},
 		{
 			title: "5. Advisor (optional)",
 			note:  "OpenAI-compatible chat for recommend (default Ollama).",
 			cmds: []string{
-				"runhug-cli config set advisor_base_url http://127.0.0.1:11434/v1",
-				"runhug-cli config set advisor_model <chat-model>",
+				"runhug config set advisor_base_url http://127.0.0.1:11434/v1",
+				"runhug config set advisor_model <chat-model>",
 			},
 			done: s.AdvisorBaseURL != "" || s.AdvisorModel != "",
 		},
@@ -75,37 +75,37 @@ func wizardChecklist(w io.Writer) error {
 			title: "6. Find a model",
 			note:  "Use-case → shortlist → pick org/model.",
 			cmds: []string{
-				`runhug-cli recommend -q "your use case" --no-llm`,
-				`runhug-cli search -q "your use case" --limit 8`,
+				`runhug recommend -q "your use case" --no-llm`,
+				`runhug search -q "your use case" --limit 8`,
 			},
 		},
 		{
 			title: "7. GPU sizing",
 			note:  "Interactive pool picker (e = estimate for highlighted GPU); use --estimate on recommend gpu / deploy --dry-run for full costs.",
-			cmds:  []string{"runhug-cli recommend gpu <org/model>", "runhug-cli recommend gpu <org/model> --estimate", "runhug-cli deploy <org/model> --dry-run --gpu <POOL>"},
+			cmds:  []string{"runhug recommend gpu <org/model>", "runhug recommend gpu <org/model> --estimate", "runhug deploy <org/model> --dry-run --gpu <POOL>"},
 		},
 		{
 			title: "8. Deploy dry-run",
 			note:  "Always plan first — cost/GPU estimate, nothing created.",
-			cmds:  []string{"runhug-cli deploy <org/model> --dry-run", "runhug-cli deploy <org/model> --dry-run --estimate"},
+			cmds:  []string{"runhug deploy <org/model> --dry-run", "runhug deploy <org/model> --dry-run --estimate"},
 		},
 		{
 			title: "9. Live deploy?",
 			note:  "Default No. Only with an explicit confirm + Runpod connected.",
-			cmds:  []string{"runhug-cli deploy <org/model>"},
+			cmds:  []string{"runhug deploy <org/model>"},
 		},
 		{
 			title: "10. Proxy",
 			note:  "OpenAI-compatible local proxy after deploy.",
-			cmds:  []string{"runhug-cli proxy"},
+			cmds:  []string{"runhug proxy"},
 		},
 		{
 			title: "11. Done",
 			note:  "Useful follow-ups.",
 			cmds: []string{
-				"runhug-cli list",
-				"runhug-cli status",
-				"runhug-cli search -q \"…\"",
+				"runhug list",
+				"runhug status",
+				"runhug search -q \"…\"",
 			},
 		},
 	}
@@ -174,7 +174,7 @@ func runWizard() error {
 
 	if err := wizardDeployDryRun(w, modelID, gpuPool); err != nil {
 		fmt.Fprintf(os.Stderr, "%s  dry-run failed: %v\n", yellow("⚠"), err)
-		cmd := "runhug-cli deploy " + modelID + " --dry-run"
+		cmd := "runhug deploy " + modelID + " --dry-run"
 		if gpuPool != "" {
 			cmd += " --gpu " + gpuPool
 		}
@@ -245,7 +245,7 @@ func wizardHF(w io.Writer) error {
 		return err
 	}
 	if !ok {
-		fmt.Fprintln(w, dim("Skipped — gated models / cloud embeddings need: runhug-cli connect hf"))
+		fmt.Fprintln(w, dim("Skipped — gated models / cloud embeddings need: runhug connect hf"))
 		fmt.Fprintln(w)
 		return nil
 	}
@@ -355,7 +355,7 @@ func wizardFindModel(w io.Writer) (string, error) {
 	ids, err := wizardShortlist(w, query)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s  shortlist: %v\n", yellow("⚠"), err)
-		fmt.Fprintln(w, dim("Try paste org/model, or run: runhug-cli search -q \""+query+"\""))
+		fmt.Fprintln(w, dim("Try paste org/model, or run: runhug search -q \""+query+"\""))
 	}
 
 	for {
@@ -538,7 +538,7 @@ func wizardDeployDryRun(w io.Writer, modelID, gpuPool string) error {
 				return err
 			}
 		} else {
-			return fmt.Errorf("not connected — run `runhug-cli connect` then deploy --dry-run")
+			return fmt.Errorf("not connected — run `runhug connect` then deploy --dry-run")
 		}
 	}
 	fmt.Fprintln(w, dim("Planning only — nothing will be created."))
@@ -554,7 +554,7 @@ func wizardLiveDeploy(w io.Writer, modelID, gpuPool string) (bool, error) {
 	env := config.Load()
 	if !env.Connected() {
 		fmt.Fprintln(w, yellow("⚠")+"  "+dim("Runpod not connected — skipping live create."))
-		later := "runhug-cli connect && runhug-cli deploy " + modelID
+		later := "runhug connect && runhug deploy " + modelID
 		if gpuPool != "" {
 			later += " --gpu " + gpuPool
 		}
@@ -600,7 +600,7 @@ func wizardProxy(w io.Writer, deployed bool) error {
 	if !deployed && !hasEndpoint {
 		fmt.Fprintln(w, dim("No Runpod endpoint in the registry yet."))
 		commands(w, "After deploy:",
-			"runhug-cli proxy",
+			"runhug proxy",
 			"curl http://127.0.0.1:8080/v1/models",
 		)
 		return nil
@@ -611,7 +611,7 @@ func wizardProxy(w io.Writer, deployed bool) error {
 	}
 	if !ok {
 		commands(w, "When ready:",
-			"runhug-cli proxy",
+			"runhug proxy",
 			"curl http://127.0.0.1:8080/v1/models",
 		)
 		return nil
@@ -624,21 +624,21 @@ func wizardDone(w io.Writer, modelID string, deployed bool) {
 	fmt.Fprintln(w, green("You're set.")+"  "+dim("Next commands:"))
 	fmt.Fprintln(w)
 	next := []string{
-		"runhug-cli search -q \"…\"",
-		"runhug-cli recommend -q \"…\"",
-		"runhug-cli list",
-		"runhug-cli proxy",
+		"runhug search -q \"…\"",
+		"runhug recommend -q \"…\"",
+		"runhug list",
+		"runhug proxy",
 	}
 	if modelID != "" {
 		next = append([]string{
-			"runhug-cli inspect " + modelID,
-			"runhug-cli recommend gpu " + modelID,
-			"runhug-cli deploy " + modelID + " --dry-run",
+			"runhug inspect " + modelID,
+			"runhug recommend gpu " + modelID,
+			"runhug deploy " + modelID + " --dry-run",
 		}, next...)
 		if !deployed {
-			next = append([]string{"runhug-cli deploy " + modelID}, next...)
+			next = append([]string{"runhug deploy " + modelID}, next...)
 		}
 	}
 	commands(w, "", next...)
-	fmt.Fprintln(w, dim("Tip: runhug-cli wizard --yes prints this flow as a checklist."))
+	fmt.Fprintln(w, dim("Tip: runhug wizard --yes prints this flow as a checklist."))
 }

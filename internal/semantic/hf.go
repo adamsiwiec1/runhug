@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/version"
+	"github.com/adamsiwiec1/runhug/internal/version"
 )
 
 // HF calls Hugging Face Inference Providers feature-extraction.

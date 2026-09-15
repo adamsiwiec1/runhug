@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/index"
-	"github.com/adamsiwiec1/runhug-cli/internal/packs"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/index"
+	"github.com/adamsiwiec1/runhug/internal/packs"
 )
 
 // promptPackCategories asks which category packs to install.
@@ -229,7 +229,7 @@ func updateInstalledPacks(ctx context.Context, forcePacks bool, updateLimit int)
 	}
 	ids := inst.SelectedIDs()
 	if len(ids) == 0 {
-		return fmt.Errorf("no packs installed — run: runhug-cli init")
+		return fmt.Errorf("no packs installed — run: runhug init")
 	}
 
 	idxPath := indexFilePath()

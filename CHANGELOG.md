@@ -1,11 +1,14 @@
 # Changelog
 
-All notable user-facing changes to runhug-cli are documented here.
+All notable user-facing changes to runhug are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Changed
+- Product/repo rename: module `github.com/adamsiwiec1/runhug`, CLI binary `runhug` (`cmd/runhug`), config dir `~/.config/runhug` (migrates keys/settings from `~/.config/runhug-cli`). GitHub repo is now `adamsiwiec1/runhug`. Next release asset prefix `runhug_<ver>_…` (install scripts still accept legacy `runhug-cli_` assets).
 
 ### Fixed
 - Live `deploy` create payload matches Runpod v2: top-level `type` (default `QUEUE`, matching `worker-v1-vllm`), `workers.idleTimeout`, and `scaling` as `{type:QUEUE_DELAY,queueDelay}` for QUEUE or `{type:REQUEST_COUNT,requestCount}` for LOAD_BALANCER (no `value`/`idleTimeout` in scaling). Optional `--endpoint-type LOAD_BALANCER` uses FastAPI LB URL `https://{id}.api.runpod.ai/v1` (not `/openai/v1`). QUEUE OpenAI URL remains `https://api.runpod.ai/v2/{id}/openai/v1`.

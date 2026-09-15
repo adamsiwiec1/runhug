@@ -2,13 +2,53 @@
 
 ## Install
 
+### Go (`@latest`)
+
 ```bash
-git clone https://github.com/adamsiwiec1/runhug-cli.git
-cd runhug-cli
-go build -o bin/runhug ./cmd/runhug
+go install github.com/adamsiwiec1/runhug/cmd/runhug@latest
 ```
 
-Binary name: `runhug`.
+Binary name: **`runhug`**.
+
+### Binary (curl)
+
+Release assets are bare binaries. **Next release:** `runhug_<version>_<os>_<arch>` (Windows `.exe`). Older tags may still use `runhug-cli_` — install scripts try the new prefix first, then fall back.
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/adamsiwiec1/runhug/main/scripts/install.sh | bash
+```
+
+**Windows (amd64, PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/adamsiwiec1/runhug/main/scripts/install.ps1 | iex
+```
+
+After the next release (until then, use `runhug-cli_` for current assets):
+
+```bash
+# macOS arm64
+curl -fsSL -o runhug https://github.com/adamsiwiec1/runhug/releases/download/vX.Y.Z/runhug_X.Y.Z_darwin_arm64
+chmod +x runhug && sudo mv runhug /usr/local/bin/runhug
+
+# Linux amd64
+curl -fsSL -o runhug https://github.com/adamsiwiec1/runhug/releases/download/vX.Y.Z/runhug_X.Y.Z_linux_amd64
+chmod +x runhug && sudo mv runhug /usr/local/bin/runhug
+```
+
+```powershell
+Invoke-WebRequest -Uri https://github.com/adamsiwiec1/runhug/releases/download/vX.Y.Z/runhug_X.Y.Z_windows_amd64.exe -OutFile runhug.exe
+```
+
+### From source (optional)
+
+```bash
+git clone https://github.com/adamsiwiec1/runhug.git
+cd runhug
+go build -o bin/runhug ./cmd/runhug
+```
 
 ## Wizard (recommended)
 

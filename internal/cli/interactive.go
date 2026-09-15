@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/version"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/version"
 )
 
 type replSession struct {
@@ -43,7 +43,7 @@ func runREPL() error {
 	fmt.Fprintln(os.Stdout)
 
 	for {
-		fmt.Fprint(os.Stdout, bold("runhug-cli> "))
+		fmt.Fprint(os.Stdout, bold("runhug> "))
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
-	"github.com/adamsiwiec1/runhug-cli/internal/semantic"
+	"github.com/adamsiwiec1/runhug/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/semantic"
 )
 
 func TestRankSemanticSkipsLikes(t *testing.T) {

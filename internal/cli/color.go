@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/config"
 )
 
 const (

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/family"
-	"github.com/adamsiwiec1/runhug-cli/internal/hf"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/family"
+	"github.com/adamsiwiec1/runhug/internal/hf"
 )
 
 type searchFlagVals struct {
@@ -107,7 +107,7 @@ func cmdSearch(args []string) error {
 func searchAndPrint(query string, opts hubOpts) error {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return fmt.Errorf("usage: runhug-cli search <query>")
+		return fmt.Errorf("usage: runhug search <query>")
 	}
 	if opts.Sort == "" {
 		opts.Sort = "relevance"
@@ -213,7 +213,7 @@ func cmdInspect(args []string) error {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: runhug-cli inspect <org/model>")
+		return fmt.Errorf("usage: runhug inspect <org/model>")
 	}
 	modelID := fs.Arg(0)
 
@@ -235,7 +235,7 @@ func cmdInspect(args []string) error {
 			recText = "GPU catalog: " + err.Error()
 		}
 	} else {
-		recText = "run `runhug-cli connect` to pick a live serverless GPU pool"
+		recText = "run `runhug connect` to pick a live serverless GPU pool"
 	}
 
 	if *asJSON {
@@ -287,13 +287,13 @@ func cmdInspect(args []string) error {
 	}
 	fmt.Fprintln(os.Stdout)
 	next := []string{
-		"runhug-cli deploy " + model.RepoID(),
-		"runhug-cli connect",
+		"runhug deploy " + model.RepoID(),
+		"runhug connect",
 	}
 	if format.Engine == hf.EngineGGUF {
 		next = []string{
-			"runhug-cli init --model " + model.RepoID(),
-			"runhug-cli search " + model.RepoID() + " --sort likes",
+			"runhug init --model " + model.RepoID(),
+			"runhug search " + model.RepoID() + " --sort likes",
 		}
 	}
 	commands(os.Stdout, "Next:", next...)

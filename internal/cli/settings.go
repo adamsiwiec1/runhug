@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/config"
 )
 
 func cmdConfig(args []string) error {
@@ -21,7 +21,7 @@ func cmdConfig(args []string) error {
 	case "path", "paths", "show":
 		return printConfigInfo()
 	default:
-		return fmt.Errorf("usage: runhug-cli config [get|set] <key> [value]\nKnown keys: no_color, update_limit, advisor_base_url, advisor_model")
+		return fmt.Errorf("usage: runhug config [get|set] <key> [value]\nKnown keys: no_color, update_limit, advisor_base_url, advisor_model")
 	}
 }
 
@@ -74,11 +74,11 @@ func printConfigInfo() error {
 	}
 	fmt.Fprintln(os.Stdout)
 	commands(os.Stdout, "Examples:",
-		"runhug-cli config set no_color true",
-		"runhug-cli config set update_limit 5000",
-		"runhug-cli config set advisor_base_url http://127.0.0.1:11434/v1",
-		"runhug-cli config get update_limit",
-		"runhug-cli connect hf",
+		"runhug config set no_color true",
+		"runhug config set update_limit 5000",
+		"runhug config set advisor_base_url http://127.0.0.1:11434/v1",
+		"runhug config get update_limit",
+		"runhug connect hf",
 	)
 	return nil
 }
@@ -120,7 +120,7 @@ func cmdConfigGet(args []string) error {
 
 func cmdConfigSet(args []string) error {
 	if len(args) < 2 {
-		return fmt.Errorf("usage: runhug-cli config set <key> <value>")
+		return fmt.Errorf("usage: runhug config set <key> <value>")
 	}
 	key := strings.ToLower(strings.TrimSpace(args[0]))
 	val := strings.TrimSpace(args[1])

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/index"
-	"github.com/adamsiwiec1/runhug-cli/internal/packs"
-	"github.com/adamsiwiec1/runhug-cli/internal/version"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/index"
+	"github.com/adamsiwiec1/runhug/internal/packs"
+	"github.com/adamsiwiec1/runhug/internal/version"
 )
 
 func cmdUpdate(args []string) error {
@@ -99,14 +99,21 @@ func printCLIUpdateHelp(args []string) error {
 	_ = args
 	heading(os.Stdout, "Update CLI")
 	fmt.Fprintf(os.Stdout, "Current: %s %s\n\n", version.Name, version.Version)
-	fmt.Fprintln(os.Stdout, "Install / upgrade with Go:")
-	fmt.Fprintln(os.Stdout, "  "+cyan("go install github.com/adamsiwiec1/runhug-cli/cmd/runhug-cli@latest"))
+	fmt.Fprintln(os.Stdout, "Install / upgrade with Go (binary name: runhug):")
+	fmt.Fprintln(os.Stdout, "  "+cyan("go install github.com/adamsiwiec1/runhug/cmd/runhug@latest"))
 	fmt.Fprintln(os.Stdout)
-	fmt.Fprintln(os.Stdout, "Or grab a release:")
-	fmt.Fprintln(os.Stdout, "  "+cyan("https://github.com/adamsiwiec1/runhug-cli/releases"))
+	fmt.Fprintln(os.Stdout, "Binary install (macOS / Linux — installs as runhug):")
+	fmt.Fprintln(os.Stdout, "  "+cyan("curl -fsSL https://raw.githubusercontent.com/adamsiwiec1/runhug/main/scripts/install.sh | bash"))
 	fmt.Fprintln(os.Stdout)
-	fmt.Fprintln(os.Stdout, dim("Index refresh (separate): runhug-cli update [--limit N]"))
-	fmt.Fprintln(os.Stdout, dim("Pack refresh from Releases: runhug-cli update --packs"))
+	fmt.Fprintln(os.Stdout, "Windows (amd64, PowerShell):")
+	fmt.Fprintln(os.Stdout, "  "+cyan("irm https://raw.githubusercontent.com/adamsiwiec1/runhug/main/scripts/install.ps1 | iex"))
+	fmt.Fprintln(os.Stdout)
+	fmt.Fprintln(os.Stdout, "Release page (bare binaries; next release uses prefix runhug_, older tags may still use runhug-cli_):")
+	fmt.Fprintln(os.Stdout, "  "+cyan("https://github.com/adamsiwiec1/runhug/releases"))
+	fmt.Fprintln(os.Stdout, "  Assets: …_darwin_arm64 · …_darwin_amd64 · …_linux_amd64 · …_linux_arm64 · …_windows_amd64.exe")
+	fmt.Fprintln(os.Stdout)
+	fmt.Fprintln(os.Stdout, dim("Index refresh (separate): runhug update [--limit N]"))
+	fmt.Fprintln(os.Stdout, dim("Pack refresh from Releases: runhug update --packs"))
 	fmt.Fprintln(os.Stdout, dim("Limit: flag > RUNHUG_UPDATE_LIMIT > config update_limit > 2000 (0=unlimited)"))
 	fmt.Fprintln(os.Stdout)
 	return nil

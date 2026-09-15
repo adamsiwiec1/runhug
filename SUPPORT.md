@@ -1,6 +1,6 @@
 # Support
 
-runhug-cli is volunteer-maintained. Please use the right channel:
+runhug is volunteer-maintained. Please use the right channel:
 
 | Need | Where |
 | --- | --- |

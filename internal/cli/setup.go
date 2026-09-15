@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/runtime"
+	"github.com/adamsiwiec1/runhug/internal/runtime"
 )
 
 func cmdLocalSetup(args []string) error {

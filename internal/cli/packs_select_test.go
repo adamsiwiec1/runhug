@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/packs"
+	"github.com/adamsiwiec1/runhug/internal/packs"
 )
 
 func TestParseCategorySelection(t *testing.T) {

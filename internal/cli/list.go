@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamsiwiec1/runhug-cli/internal/config"
-	"github.com/adamsiwiec1/runhug-cli/internal/jobs"
-	"github.com/adamsiwiec1/runhug-cli/internal/runpod"
-	"github.com/adamsiwiec1/runhug-cli/internal/store"
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/jobs"
+	"github.com/adamsiwiec1/runhug/internal/runpod"
+	"github.com/adamsiwiec1/runhug/internal/store"
 )
 
 func cmdList(args []string) error {
@@ -59,8 +59,8 @@ func cmdList(args []string) error {
 	if len(reg.Models) == 0 {
 		fmt.Fprintf(os.Stdout, "%s  %s\n\n", dim("registry"), path)
 		commands(os.Stdout, "Empty — search or init:",
-			"runhug-cli search instruct --sort likes",
-			"runhug-cli init",
+			"runhug search instruct --sort likes",
+			"runhug init",
 		)
 	} else {
 		printRegistry(reg)
@@ -72,13 +72,13 @@ func cmdList(args []string) error {
 	} else if !env.Connected() {
 		fmt.Fprintln(os.Stdout, dim("Runpod  (not connected)"))
 		commands(os.Stdout, "",
-			"runhug-cli connect",
+			"runhug connect",
 		)
 	}
 	if len(reg.Models) > 0 || wantRemote {
 		commands(os.Stdout, "Next:",
-			"runhug-cli proxy",
-			"runhug-cli deploy <org/model>",
+			"runhug proxy",
+			"runhug deploy <org/model>",
 		)
 	}
 	return nil
@@ -317,7 +317,7 @@ func cmdDelete(args []string) error {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: runhug-cli delete <model|endpoint-id>")
+		return fmt.Errorf("usage: runhug delete <model|endpoint-id>")
 	}
 	env := config.Load()
 	reg, _, err := store.Load()
@@ -429,7 +429,7 @@ func cmdImport(args []string) error {
 		return err
 	}
 	if fs.NArg() < 1 || *model == "" {
-		return fmt.Errorf("usage: runhug-cli import <endpoint-id> --model org/name")
+		return fmt.Errorf("usage: runhug import <endpoint-id> --model org/name")
 	}
 	reg, _, err := store.Load()
 	if err != nil {
