@@ -7,8 +7,17 @@ $Repo = "adamsiwiec1/runhug"
 $AssetPrefixes = @("runhug_", "runhug-cli_")
 $BinName = "runhug.exe"
 
-$api = "https://api.github.com/repos/$Repo/releases/latest"
+# Optional: $env:TAG = "v0.1.3" or $env:VERSION = "0.1.3" to pin a release (default: latest)
 $headers = @{ Accept = "application/vnd.github+json"; "User-Agent" = "runhug-install" }
+if ($env:TAG) {
+  $tagHint = $env:TAG
+  $api = "https://api.github.com/repos/$Repo/releases/tags/$tagHint"
+} elseif ($env:VERSION) {
+  $verHint = $env:VERSION.TrimStart("v")
+  $api = "https://api.github.com/repos/$Repo/releases/tags/v$verHint"
+} else {
+  $api = "https://api.github.com/repos/$Repo/releases/latest"
+}
 $release = Invoke-RestMethod -Uri $api -Headers $headers
 $tag = $release.tag_name
 $ver = $tag.TrimStart("v")
