@@ -45,10 +45,10 @@ func TestUsageMentionsSearch(t *testing.T) {
 		"recommend",
 		"update_limit",
 		"config",
-		"SQLite",
-		"Search NLP setup",
+		"search nlp",
 		"--online",
-		"local SQLite",
+		"local index",
+		"get started: runhug wizard",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("usage missing %q\n%s", want, s)
