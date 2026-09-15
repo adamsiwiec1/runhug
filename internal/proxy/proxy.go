@@ -88,7 +88,7 @@ func (s *Server) forward(w http.ResponseWriter, r *http.Request) {
 	}
 
 	suffix := openaiSuffix(r.URL.Path)
-	upstream := runpod.OpenAIURL(entry.EndpointID)
+	upstream := runpod.OpenAIURLFor(entry.EndpointType, entry.EndpointID)
 	if entry.Kind() == store.BackendLocal {
 		if entry.BaseURL == "" {
 			openaiError(w, http.StatusBadGateway, "local model has no base_url; run `local start`")

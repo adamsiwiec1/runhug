@@ -2,22 +2,22 @@
 layout: home
 
 hero:
-  name: runhug-cli
+  name: runhug
   text: Find. Deploy. Run.
-  tagline: Find the best Hugging Face model. Deploy it on Runpod in minutes. Run it for pennies — faster than the UI.
+  tagline: Hugging Face search via NLP, RunPod serverless vLLM in minutes — for pennies.
   actions:
     - theme: brand
       text: Get started
-      link: /guide/
+      link: /guide/getting-started
     - theme: alt
-      text: Runpod
-      link: /guide/runpod
+      text: CLI reference
+      link: /reference/cli
 
 features:
   - title: Search
-    details: NLP search over Hub/index (`-q` / `--query`) — repo id, tags, card descriptions, plus embedding rerank (nomic-embed-text or HF Inference). No local chat model required. Default task is auto/any (not forced text-generation).
-  - title: Search setup
-    details: `init` prepares the embedder + optional index (`nomic-embed-text` / `connect hf` / `update`). Optional `--model` installs a local serve model.
+    details: Local SQLite index + optional embeddings. No chat model required for search.
   - title: Deploy
-    details: `connect` prints the API keys URL and saves a key. `deploy` creates one Serverless vLLM endpoint. `list` and `proxy` finish the loop.
+    details: One QUEUE serverless vLLM endpoint by default. Cheap GPU pools, workers min=0.
+  - title: Use
+    details: OpenAI-compatible URL, local proxy, or `runhug run` / `start claude`.
 ---

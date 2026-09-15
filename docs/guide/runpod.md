@@ -1,39 +1,37 @@
-# Runpod vLLM
+# RunPod deploy
 
-Runpod authenticates with an API key. There is no public OAuth/device-code
-for third-party CLIs. `connect` prints
-[https://console.runpod.io/user/credentials?tab=api-key](https://console.runpod.io/user/credentials?tab=api-key)
-(it does not open a browser), then saves the key beside the registry
-(`runpod.key`, mode 0600) and never prints it. `RUNPOD_API_KEY` is used if set.
-Gated Hub weights also need `HF_TOKEN` (not stored).
+## Connect
 
 ```bash
-runhug-cli connect
-runhug-cli search qwen2.5 instruct
-runhug-cli inspect Qwen/Qwen2.5-7B-Instruct
-runhug-cli deploy Qwen/Qwen2.5-7B-Instruct
-runhug-cli list
-runhug-cli proxy
+runhug connect
 ```
 
-`inspect` / `deploy` size VRAM from Hub safetensors metadata and pick the
-cheapest in-stock serverless pool. One endpoint per model. Workers default
-to min=0.
+Stores the key at `~/.config/runhug/runpod.key` (0600). `RUNPOD_API_KEY` wins when set. Gated Hub weights need `HF_TOKEN`.
 
-`list` shows the local registry plus account endpoints when connected.
-Deployments this tool created are marked **ours**.
-
-`proxy` (alias `serve`) listens on `http://127.0.0.1:8080/v1`.
+## Deploy
 
 ```bash
-curl http://127.0.0.1:8080/v1/models
+runhug deploy <model> --dry-run
+runhug deploy <model>                 # --endpoint-type QUEUE (default)
+runhug list
+runhug proxy                          # http://127.0.0.1:8080/v1
 ```
 
-```python
-from openai import OpenAI
-client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8080/v1")
-client.models.list()
-```
+Workers default to **min=0**. One endpoint per model. Sizing uses Hub safetensors metadata + cheapest in-stock pool.
 
-Switch with `use` or the request `model` field. `disconnect` deletes the
-stored key.
+## URLs that work
+
+| Type | OpenAI base |
+| --- | --- |
+| QUEUE (default) | `https://api.runpod.ai/v2/{id}/openai/v1` |
+| LOAD_BALANCER | `https://{id}.api.runpod.ai/v1` |
+
+Do **not** use `{id}.api.runpod.ai/...` for QUEUE — RunPod rejects that for queue workers.
+
+## Chat & agents
+
+```bash
+runhug run [model]
+runhug start claude              # Anthropic→OpenAI bridge for Claude Code
+runhug start claude --no-launch  # print env only
+```

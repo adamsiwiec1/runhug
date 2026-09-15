@@ -132,6 +132,54 @@ func (m Model) CardDescription() string {
 	return ""
 }
 
+// FamilyHints collects Hub signals used to pick worker-vllm family env
+// (ENABLE_AUTO_TOOL_CHOICE, TOOL_CALL_PARSER, …) when the repo id alone is
+// insufficient — e.g. fine-tunes whose names omit "qwen"/"mistral"/"llama".
+func (m Model) FamilyHints() []string {
+	var out []string
+	out = append(out, m.Tags...)
+	if m.CardData != nil {
+		switch bm := m.CardData["base_model"].(type) {
+		case string:
+			if s := strings.TrimSpace(bm); s != "" {
+				out = append(out, s)
+			}
+		case []any:
+			for _, x := range bm {
+				if s, ok := x.(string); ok {
+					if s = strings.TrimSpace(s); s != "" {
+						out = append(out, s)
+					}
+				}
+			}
+		}
+	}
+	if m.Config != nil {
+		if mt, ok := m.Config["model_type"].(string); ok {
+			if mt = strings.TrimSpace(mt); mt != "" {
+				out = append(out, mt)
+			}
+		}
+		switch archs := m.Config["architectures"].(type) {
+		case []any:
+			for _, a := range archs {
+				if s, ok := a.(string); ok {
+					if s = strings.TrimSpace(s); s != "" {
+						out = append(out, s)
+					}
+				}
+			}
+		case []string:
+			for _, s := range archs {
+				if s = strings.TrimSpace(s); s != "" {
+					out = append(out, s)
+				}
+			}
+		}
+	}
+	return out
+}
+
 func clipDesc(s string) string {
 	if len(s) > 2000 {
 		return s[:2000]

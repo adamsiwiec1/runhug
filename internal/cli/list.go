@@ -261,7 +261,7 @@ func cmdUse(args []string) error {
 		if m.Kind() == store.BackendLocal {
 			fmt.Fprintln(os.Stdout, cyan(dash(m.BaseURL)))
 		} else {
-			fmt.Fprintln(os.Stdout, cyan(runpod.OpenAIURL(m.EndpointID)))
+			fmt.Fprintln(os.Stdout, cyan(runpod.OpenAIURLFor(m.EndpointType, m.EndpointID)))
 		}
 		return nil
 	}
@@ -276,7 +276,7 @@ func cmdUse(args []string) error {
 	if m.Kind() == store.BackendLocal {
 		fmt.Fprintln(os.Stdout, cyan(dash(m.BaseURL)))
 	} else {
-		fmt.Fprintln(os.Stdout, cyan(runpod.OpenAIURL(m.EndpointID)))
+		fmt.Fprintln(os.Stdout, cyan(runpod.OpenAIURLFor(m.EndpointType, m.EndpointID)))
 	}
 	return nil
 }
@@ -305,7 +305,7 @@ func cmdURL(args []string) error {
 		fmt.Println(m.BaseURL)
 		return nil
 	}
-	fmt.Println(runpod.OpenAIURL(m.EndpointID))
+	fmt.Println(runpod.OpenAIURLFor(m.EndpointType, m.EndpointID))
 	return nil
 }
 

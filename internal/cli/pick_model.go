@@ -1,0 +1,244 @@
+package cli
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/adamsiwiec1/runhug/internal/config"
+	"github.com/adamsiwiec1/runhug/internal/store"
+	"github.com/adamsiwiec1/runhug/internal/version"
+)
+
+// pickStartModel chooses a registry key and/or served model name when the user
+// did not already pin one. Never silently uses reg.Current.
+//
+// Behavior:
+//   - positional / --endpoint already set → pass-through
+//   - --base-url with --model → pass-through
+//   - --base-url without --model → GET {base}/models and pick 1–N (sets serveModel)
+//   - neither → menu of usable registry endpoints; empty registry → deploy/list hint
+//
+// skipPrompt (non-TTY, --yes, or --no-launch): auto-pick only when exactly one
+// option; otherwise error asking for an explicit arg.
+func pickStartModel(registryKey, baseURL, serveModel, apiKeyEnv string, skipPrompt bool) (string, string, error) {
+	registryKey = strings.TrimSpace(registryKey)
+	baseURL = strings.TrimSpace(baseURL)
+	serveModel = strings.TrimSpace(serveModel)
+
+	if registryKey != "" {
+		return registryKey, serveModel, nil
+	}
+	if baseURL != "" {
+		if serveModel != "" {
+			return "", serveModel, nil
+		}
+		ids, err := listRemoteModelIDs(baseURL, apiKeyEnv)
+		if err != nil {
+			return "", "", fmt.Errorf("list models at %s: %w\nHint: pass --model <served-name>", baseURL, err)
+		}
+		if len(ids) == 0 {
+			return "", "default", nil
+		}
+		picked, err := pickNumbered("model", ids, formatRemoteModelLine, skipPrompt)
+		if err != nil {
+			return "", "", err
+		}
+		return "", picked, nil
+	}
+
+	reg, _, err := store.Load()
+	if err != nil {
+		return "", "", err
+	}
+	entries := usableRegistryEntries(reg)
+	if len(entries) == 0 {
+		return "", "", fmt.Errorf(
+			"no registry endpoints to start\nHint: run `%s list`, or deploy (`%s deploy <model> --dry-run`) / `%s local add`",
+			version.Name, version.Name, version.Name,
+		)
+	}
+	labels := make([]string, len(entries))
+	for i, e := range entries {
+		labels[i] = e.HFRepo
+	}
+	picked, err := pickNumbered("model", labels, func(i int, id string) string {
+		return formatRegistryEntryLine(i+1, entries[i])
+	}, skipPrompt)
+	if err != nil {
+		return "", "", err
+	}
+	return picked, serveModel, nil
+}
+
+type registryPickEntry struct {
+	HFRepo string
+	Kind   string // "runpod" | "local"
+	Where  string // endpoint id or base_url
+	Extra  string
+}
+
+func usableRegistryEntries(reg *store.Registry) []registryPickEntry {
+	if reg == nil || len(reg.Models) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(reg.Models))
+	for id, m := range reg.Models {
+		if !registryEntryUsable(m) {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	// Surface "current" first (still requires an explicit pick).
+	if reg.Current != "" {
+		cur := make([]string, 0, len(ids))
+		rest := make([]string, 0, len(ids))
+		for _, id := range ids {
+			if id == reg.Current {
+				cur = append(cur, id)
+			} else {
+				rest = append(rest, id)
+			}
+		}
+		ids = append(cur, rest...)
+	}
+	out := make([]registryPickEntry, 0, len(ids))
+	for _, id := range ids {
+		m := reg.Models[id]
+		e := registryPickEntry{HFRepo: m.HFRepo}
+		if m.Kind() == store.BackendLocal {
+			e.Kind = "local"
+			e.Where = m.BaseURL
+			if m.Runtime != "" {
+				e.Extra = m.Runtime
+			}
+		} else {
+			e.Kind = "runpod"
+			e.Where = m.EndpointID
+			if m.EndpointType != "" {
+				e.Extra = m.EndpointType
+			}
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+func registryEntryUsable(m store.Model) bool {
+	if m.Kind() == store.BackendLocal {
+		return strings.TrimSpace(m.BaseURL) != ""
+	}
+	return strings.TrimSpace(m.EndpointID) != ""
+}
+
+func formatRegistryEntryLine(n int, e registryPickEntry) string {
+	line := fmt.Sprintf("%d) %s  %s %s", n, e.HFRepo, e.Kind, e.Where)
+	if e.Extra != "" {
+		line += "  " + e.Extra
+	}
+	return line
+}
+
+func formatRemoteModelLine(i int, id string) string {
+	return fmt.Sprintf("%d) %s", i+1, id)
+}
+
+// pickNumbered prints a 1–N menu and returns the chosen label.
+func pickNumbered(noun string, labels []string, lineFn func(i int, id string) string, skipPrompt bool) (string, error) {
+	if len(labels) == 0 {
+		return "", fmt.Errorf("no %ss to pick", noun)
+	}
+	if len(labels) == 1 && (skipPrompt || !canPrompt()) {
+		return labels[0], nil
+	}
+	if skipPrompt || !canPrompt() {
+		return "", fmt.Errorf(
+			"multiple %ss available — pass a positional arg, --endpoint, or --model (or run interactively to pick 1-%d)",
+			noun, len(labels),
+		)
+	}
+
+	w := os.Stderr
+	fmt.Fprintln(w, bold("Endpoints"))
+	for i, id := range labels {
+		fmt.Fprintln(w, "  "+lineFn(i, id))
+	}
+	fmt.Fprintln(w)
+	line, err := readLine(fmt.Sprintf("Pick %s 1-%d: ", noun, len(labels)))
+	if err != nil {
+		return "", err
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(line))
+	if err != nil || n < 1 || n > len(labels) {
+		return "", fmt.Errorf("expected a number 1-%d", len(labels))
+	}
+	chosen := labels[n-1]
+	fmt.Fprintln(w, green("✓")+"  "+dim("Using "+chosen))
+	fmt.Fprintln(w)
+	return chosen, nil
+}
+
+func listRemoteModelIDs(baseURL, apiKeyEnv string) ([]string, error) {
+	base := strings.TrimRight(NormalizeOpenAIBase(baseURL), "/")
+	url := base + "/models"
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	key := config.Load().RunpodAPIKey
+	if apiKeyEnv != "" {
+		if v := config.SanitizeAPIKey(os.Getenv(apiKeyEnv)); v != "" {
+			key = v
+		}
+	}
+	if key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
+	client := &http.Client{Timeout: 15 * time.Second}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		msg := strings.TrimSpace(string(body))
+		if len(msg) > 200 {
+			msg = msg[:200] + "…"
+		}
+		return nil, fmt.Errorf("HTTP %d: %s", res.StatusCode, msg)
+	}
+	var parsed struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, fmt.Errorf("decode /models: %w", err)
+	}
+	ids := make([]string, 0, len(parsed.Data))
+	seen := map[string]struct{}{}
+	for _, d := range parsed.Data {
+		id := strings.TrimSpace(d.ID)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids, nil
+}

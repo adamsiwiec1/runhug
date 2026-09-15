@@ -29,6 +29,8 @@ func cmdDeploy(args []string) error {
 	minWorkers := fs.Int("min-workers", 0, "minimum workers (nonzero bills around the clock)")
 	maxWorkers := fs.Int("max-workers", 3, "maximum workers")
 	idle := fs.Int("idle-timeout", 5, "seconds before an idle worker scales down")
+	scalerValue := fs.Int("scaler-value", 1, "REQUEST_COUNT concurrency target (or QUEUE_DELAY seconds when --endpoint-type=QUEUE)")
+	endpointType := fs.String("endpoint-type", runpod.EndpointTypeQueue, "QUEUE (default, matches worker-v1-vllm) or LOAD_BALANCER")
 	flashboot := fs.String("flashboot", "FLASHBOOT", "OFF, FLASHBOOT, or PRIORITY_FLASHBOOT")
 	image := fs.String("image", runpod.DefaultImage, "worker image")
 	disk := fs.Int("disk", 0, "container disk GB (0 = sized from the repo)")
@@ -100,9 +102,9 @@ func cmdDeploy(args []string) error {
 		workerEnv["HF_TOKEN"] = env.HFToken
 	}
 	if !*noFamily {
-		for k, v := range family.EnvFor(modelID) {
-			workerEnv[k] = v
-		}
+		// Match family from repo id plus Hub base_model / tags / arch so fine-tunes
+		// like Qwythos (Qwen3.5 base, no "qwen" in the name) still get tool env.
+		workerEnv = family.Apply(modelID, workerEnv, model.FamilyHints()...)
 	}
 	q := *quant
 	if q == "" {
@@ -125,8 +127,28 @@ func cmdDeploy(args []string) error {
 		workerEnv[k] = v
 	}
 
+	epType := strings.ToUpper(strings.TrimSpace(*endpointType))
+	if epType == "" {
+		epType = runpod.EndpointTypeQueue
+	}
+	var scaling *runpod.Scaling
+	switch epType {
+	case runpod.EndpointTypeQueue:
+		// QUEUE may use QUEUE_DELAY (seconds) or REQUEST_COUNT; default delay from --scaler-value.
+		delay := float64(*scalerValue)
+		if delay < 0.5 {
+			delay = 4
+		}
+		scaling = runpod.QueueDelayScaling(delay)
+	case runpod.EndpointTypeLoadBalancer:
+		scaling = runpod.RequestCountScaling(*scalerValue)
+	default:
+		return fmt.Errorf("--endpoint-type must be LOAD_BALANCER or QUEUE, got %q", *endpointType)
+	}
+
 	req := runpod.CreateEndpointRequest{
 		Name:  endpointName,
+		Type:  epType,
 		Image: *image,
 		Disk:  diskGB,
 		Env:   workerEnv,
@@ -134,8 +156,12 @@ func cmdDeploy(args []string) error {
 			Pools: []string{choice.Pool.ID},
 			Count: choice.GPUCount,
 		},
-		Workers:   &runpod.Workers{Min: *minWorkers, Max: *maxWorkers},
-		Scaling:   &runpod.Scaling{Type: "QUEUE_DELAY", Value: 4, IdleTimeout: *idle},
+		Workers: &runpod.Workers{
+			Min:         *minWorkers,
+			Max:         *maxWorkers,
+			IdleTimeout: *idle,
+		},
+		Scaling:   scaling,
 		Timeout:   600000,
 		Flashboot: strings.ToUpper(*flashboot),
 	}
@@ -171,20 +197,21 @@ func cmdDeploy(args []string) error {
 		return err
 	}
 	reg.Put(store.Model{
-		HFRepo:     modelID,
-		EndpointID: created.ID,
-		GPUPool:    choice.Pool.ID,
-		GPUCount:   choice.GPUCount,
-		Image:      req.Image,
-		HourlyUSD:  choice.HourlyUSD,
-		CreatedAt:  time.Now().UTC(),
+		HFRepo:       modelID,
+		EndpointID:   created.ID,
+		EndpointType: req.Type,
+		GPUPool:      choice.Pool.ID,
+		GPUCount:     choice.GPUCount,
+		Image:        req.Image,
+		HourlyUSD:    choice.HourlyUSD,
+		CreatedAt:    time.Now().UTC(),
 	})
 	reg.Current = modelID
 	if err := reg.Save(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s saved endpoint %s but registry write failed: %v\n", yellow("warning:"), created.ID, err)
 	}
 
-	openai := runpod.OpenAIURL(created.ID)
+	openai := runpod.OpenAIURLFor(req.Type, created.ID)
 	result := map[string]any{
 		"endpoint_id": created.ID,
 		"name":        created.Name,
@@ -263,12 +290,29 @@ func printPlan(modelID string, format hf.Format, est sizing.Estimate, c runpod.C
 	printKV(os.Stdout, "why", c.Reason)
 	printKV(os.Stdout, "image", req.Image)
 	printKV(os.Stdout, "disk", fmt.Sprintf("%d GB", req.Disk))
-	printKV(os.Stdout, "workers", fmt.Sprintf("min=%d max=%d flashboot=%s", req.Workers.Min, req.Workers.Max, req.Flashboot))
+	printKV(os.Stdout, "type", req.Type)
+	wMin, wMax := 0, 3
 	idleSec := 5
-	if req.Scaling != nil && req.Scaling.IdleTimeout > 0 {
-		idleSec = req.Scaling.IdleTimeout
+	if req.Workers != nil {
+		wMin, wMax = req.Workers.Min, req.Workers.Max
+		if req.Workers.IdleTimeout > 0 {
+			idleSec = req.Workers.IdleTimeout
+		}
 	}
-	printKV(os.Stdout, "idle", fmt.Sprintf("%ds before scale-down", idleSec))
+	printKV(os.Stdout, "workers", fmt.Sprintf("min=%d max=%d flashboot=%s", wMin, wMax, req.Flashboot))
+	scalingDesc := "n/a"
+	if req.Scaling != nil {
+		switch {
+		case req.Scaling.RequestCount != nil:
+			scalingDesc = fmt.Sprintf("%s requestCount=%d", req.Scaling.Type, *req.Scaling.RequestCount)
+		case req.Scaling.QueueDelay != nil:
+			scalingDesc = fmt.Sprintf("%s queueDelay=%.1f", req.Scaling.Type, *req.Scaling.QueueDelay)
+		default:
+			scalingDesc = req.Scaling.Type
+		}
+	}
+	printKV(os.Stdout, "scaling", scalingDesc)
+	printKV(os.Stdout, "idle", fmt.Sprintf("%ds before scale-down (workers.idleTimeout)", idleSec))
 	keys := make([]string, 0, len(req.Env))
 	for k := range req.Env {
 		if k == "HF_TOKEN" {
