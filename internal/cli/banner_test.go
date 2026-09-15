@@ -46,15 +46,16 @@ func TestPrintUsageIncludesGroupedHelp(t *testing.T) {
 	printUsage(&buf)
 	out := buf.String()
 	for _, want := range []string{
-		"Setup",
-		"Search & index",
-		"Runpod",
-		"Local",
-		"Config",
+		"setup",
+		"search & index",
+		"runpod",
+		"local",
+		"config",
 		"update",
 		"connect hf",
-		"Search NLP setup",
-		"SQLite",
+		"search nlp",
+		"local index",
+		"get started: runhug wizard",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("help missing %q\n%s", want, out)
@@ -86,7 +87,15 @@ func TestPrintUsageOmitsEnvDump(t *testing.T) {
 			t.Fatalf("default help must not list env %q", leak)
 		}
 	}
-	if !strings.Contains(out, "Tips") || !strings.Contains(out, "runhug wizard") {
-		t.Fatalf("expected short Tips section\n%s", out)
+	if strings.Contains(out, "Tips") {
+		t.Fatalf("default help must not include Tips block\n%s", out)
+	}
+	if !strings.Contains(out, "get started: runhug wizard") {
+		t.Fatalf("expected quiet get-started line\n%s", out)
+	}
+	for _, leak := range []string{"gpus / import", "(guide", "(deployments)", "(serve)", "aliases:"} {
+		if strings.Contains(out, leak) {
+			t.Fatalf("root help must not include clutter %q\n%s", leak, out)
+		}
 	}
 }

@@ -38,23 +38,31 @@ func TestUsageMentionsSearch(t *testing.T) {
 		"disconnect",
 		"deploy",
 		"list",
-		"deployments",
 		"proxy",
 		"local add",
 		"update",
 		"recommend",
 		"update_limit",
 		"config",
-		"SQLite",
-		"Search NLP setup",
+		"search nlp",
 		"--online",
-		"local SQLite",
+		"local index",
+		"get started: runhug wizard",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("usage missing %q\n%s", want, s)
 		}
 	}
-	for _, drop := range []string{"quickstart", "Qwen2.5-1.5B", "default local starter"} {
+	for _, drop := range []string{
+		"quickstart",
+		"Qwen2.5-1.5B",
+		"default local starter",
+		"(guide",
+		"(deployments)",
+		"(serve)",
+		"gpus / import",
+		"aliases:",
+	} {
 		if strings.Contains(s, drop) {
 			t.Fatalf("usage should not mention %q\n%s", drop, s)
 		}
