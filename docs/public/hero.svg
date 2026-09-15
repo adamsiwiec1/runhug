@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
   <title id="title">runhug — Find. Deploy. Run.</title>
-  <desc id="desc">Hero art for runhug: tagline and a clean terminal showing CLI usage without environment noise.</desc>
+  <desc id="desc">Hero art for runhug: Find/Deploy/Run tagline, numbered HF→RunPod→OpenAI steps, and a clean CLI terminal.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0b1220"/>
@@ -29,15 +29,23 @@
   <text x="72" y="190" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="44" font-weight="700" fill="#f8fafc">Find the best model.</text>
   <text x="72" y="248" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="44" font-weight="700" fill="#f8fafc">Deploy it in minutes.</text>
   <text x="72" y="306" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="44" font-weight="700" fill="#f8fafc">Run it for pennies.</text>
-  <text x="72" y="360" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="20" fill="#94a3b8">Hugging Face search → RunPod serverless vLLM → OpenAI-compatible URL</text>
+  <!-- Flow steps (vertical, left column — clear of terminal) -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="18">
+    <text x="72" y="358" fill="#5eead4" font-weight="700">1</text>
+    <text x="96" y="358" fill="#94a3b8">Hugging Face search</text>
+    <text x="72" y="390" fill="#5eead4" font-weight="700">2</text>
+    <text x="96" y="390" fill="#94a3b8">RunPod serverless vLLM</text>
+    <text x="72" y="422" fill="#5eead4" font-weight="700">3</text>
+    <text x="96" y="422" fill="#94a3b8">OpenAI-compatible URL</text>
+  </g>
 
   <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="15" font-weight="600">
-    <rect x="72" y="400" rx="999" ry="999" width="86" height="32" fill="#134e4a"/>
-    <text x="115" y="421" text-anchor="middle" fill="#99f6e4">QUEUE</text>
-    <rect x="168" y="400" rx="999" ry="999" width="78" height="32" fill="#1e3a5f"/>
-    <text x="207" y="421" text-anchor="middle" fill="#bae6fd">vLLM</text>
-    <rect x="256" y="400" rx="999" ry="999" width="70" height="32" fill="#312e81"/>
-    <text x="291" y="421" text-anchor="middle" fill="#c7d2fe">CLI</text>
+    <rect x="72" y="460" rx="999" ry="999" width="86" height="32" fill="#134e4a"/>
+    <text x="115" y="481" text-anchor="middle" fill="#99f6e4">QUEUE</text>
+    <rect x="168" y="460" rx="999" ry="999" width="78" height="32" fill="#1e3a5f"/>
+    <text x="207" y="481" text-anchor="middle" fill="#bae6fd">vLLM</text>
+    <rect x="256" y="460" rx="999" ry="999" width="70" height="32" fill="#312e81"/>
+    <text x="291" y="481" text-anchor="middle" fill="#c7d2fe">CLI</text>
   </g>
 
   <!-- Terminal -->
