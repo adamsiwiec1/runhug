@@ -8,7 +8,7 @@
 go install github.com/adamsiwiec1/runhug-cli/cmd/runhug-cli@latest
 ```
 
-Binary name: `runhug-cli`.
+**`go install` drops the binary as `runhug-cli`**; curl/`install.sh` installs as `runhug`. Optional: `ln -sf "$(go env GOPATH)/bin/runhug-cli" "$(go env GOPATH)/bin/runhug"`.
 
 ### Binary (curl)
 

@@ -99,10 +99,11 @@ func printCLIUpdateHelp(args []string) error {
 	_ = args
 	heading(os.Stdout, "Update CLI")
 	fmt.Fprintf(os.Stdout, "Current: %s %s\n\n", version.Name, version.Version)
-	fmt.Fprintln(os.Stdout, "Install / upgrade with Go:")
+	fmt.Fprintln(os.Stdout, "Install / upgrade with Go (binary name: runhug-cli):")
 	fmt.Fprintln(os.Stdout, "  "+cyan("go install github.com/adamsiwiec1/runhug-cli/cmd/runhug-cli@latest"))
+	fmt.Fprintln(os.Stdout, `  Optional: ln -sf "$(go env GOPATH)/bin/runhug-cli" "$(go env GOPATH)/bin/runhug"`)
 	fmt.Fprintln(os.Stdout)
-	fmt.Fprintln(os.Stdout, "Binary install (macOS / Linux — maps uname OS/arch to bare release asset):")
+	fmt.Fprintln(os.Stdout, "Binary install (macOS / Linux — installs as runhug):")
 	fmt.Fprintln(os.Stdout, "  "+cyan("curl -fsSL https://raw.githubusercontent.com/adamsiwiec1/runhug-cli/main/scripts/install.sh | bash"))
 	fmt.Fprintln(os.Stdout)
 	fmt.Fprintln(os.Stdout, "Windows (amd64, PowerShell):")

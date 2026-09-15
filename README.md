@@ -16,7 +16,7 @@ Docs: [adamsiwiec1.github.io/runhug-cli](https://adamsiwiec1.github.io/runhug-cl
 go install github.com/adamsiwiec1/runhug-cli/cmd/runhug-cli@latest
 ```
 
-Requires Go on your `PATH`. Binary name: `runhug-cli` (in `$(go env GOPATH)/bin` or `GOBIN`).
+Requires Go on your `PATH`. **`go install` drops the binary as `runhug-cli`** (package dir name) in `$(go env GOPATH)/bin` or `GOBIN`; curl/`install.sh` installs as `runhug`. Optional rename: `ln -sf "$(go env GOPATH)/bin/runhug-cli" "$(go env GOPATH)/bin/runhug"`.
 
 ### Binary (curl)
 
