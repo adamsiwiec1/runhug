@@ -5,8 +5,8 @@ const repo = `https://github.com/${owner}/${repoName}`;
 const base = `/${repoName}/`;
 
 export default defineConfig({
-  title: "runhug-cli",
-  titleTemplate: ":title · runhug-cli",
+  title: "runhug",
+  titleTemplate: ":title · runhug",
   description:
     "Find the best Hugging Face model. Deploy it on Runpod in minutes. Run it for pennies.",
   lang: "en-US",
@@ -20,33 +20,36 @@ export default defineConfig({
 
   themeConfig: {
     nav: [
-      { text: "Guide", link: "/guide/", activeMatch: "/guide/" },
-      { text: "Community", link: "/community/", activeMatch: "/community/" },
-      { text: "Reference", link: "/reference/community-health", activeMatch: "/reference/" },
+      { text: "Getting started", link: "/guide/getting-started", activeMatch: "/guide/getting-started" },
+      { text: "Guides", link: "/guide/search", activeMatch: "/guide/" },
+      { text: "Reference", link: "/reference/cli", activeMatch: "/reference/" },
+      { text: "GitHub", link: repo },
     ],
 
     sidebar: {
       "/guide/": [
         {
+          text: "Overview",
+          items: [{ text: "What runhug is", link: "/guide/" }],
+        },
+        {
           text: "Getting started",
+          items: [{ text: "Install & first deploy", link: "/guide/getting-started" }],
+        },
+        {
+          text: "Guides",
           items: [
-            { text: "What this is", link: "/guide/" },
-            { text: "Local runtimes", link: "/guide/local" },
-            { text: "Runpod vLLM", link: "/guide/runpod" },
+            { text: "Search & recommend", link: "/guide/search" },
+            { text: "RunPod deploy", link: "/guide/runpod" },
+            { text: "Local & HF connect", link: "/guide/local" },
             { text: "Index packs", link: "/guide/index-packs" },
           ],
         },
-      ],
-      "/community/": [
         {
-          text: "Community",
+          text: "More",
           items: [
-            { text: "How we work", link: "/community/" },
-            { text: "Contributing", link: `${repo}/blob/main/CONTRIBUTING.md` },
-            { text: "Code of conduct", link: `${repo}/blob/main/CODE_OF_CONDUCT.md` },
-            { text: "Security policy", link: `${repo}/blob/main/SECURITY.md` },
-            { text: "Support", link: `${repo}/blob/main/SUPPORT.md` },
-            { text: "Governance", link: `${repo}/blob/main/GOVERNANCE.md` },
+            { text: "Troubleshooting", link: "/guide/troubleshooting" },
+            { text: "Why RunPod-only", link: "/guide/runpod-only" },
           ],
         },
       ],
@@ -54,8 +57,9 @@ export default defineConfig({
         {
           text: "Reference",
           items: [
-            { text: "Community health files", link: "/reference/community-health" },
+            { text: "CLI map", link: "/reference/cli" },
             { text: "Changelog", link: "/reference/changelog" },
+            { text: "Community health", link: "/reference/community-health" },
           ],
         },
       ],
@@ -71,7 +75,7 @@ export default defineConfig({
     search: { provider: "local" },
 
     footer: {
-      message: "MIT licensed.",
+      message: "MIT licensed. Docs via VitePress + GitHub Pages.",
       copyright: "© 2026 Adam Siwiec",
     },
   },

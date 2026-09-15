@@ -1,26 +1,25 @@
-# Local names → Hub search
+# Local & HF connect
 
-`local add` lists models already on this machine so you can search Hugging
-Face for the same family.
+## Hugging Face token
 
 ```bash
-runhug-cli local add
-runhug-cli local add --pick 1
-runhug-cli search -q gemma4 --sort likes
+runhug connect hf     # aliases: login hf, hf login
 ```
 
-`--pick 1` on `gemma4:e4b` searches the **local index** for `gemma4` and prints likes,
-downloads, and `https://huggingface.co/<id>`. Pass `search --online` for a live Hub query.
+Used for gated Hub downloads and optional Inference embeddings. `HF_TOKEN` overrides the stored token.
 
-Bare `local add` scans `~/models`, `~/gguf`, `~/.ollama/models`, Hugging Face
-and LM Studio caches, `$RVP_CACHE`, and `$RVP_MODELS`.
-
-`--register`, `--all`, `--gguf`, and `--url` still write the optional registry
-if you need that later. They are not the search path.
-
-After a local pull, `proxy` exposes `http://127.0.0.1:8080/v1` for any
-OpenAI-compatible client.
+## Models already on this machine
 
 ```bash
-runhug-cli local add --gguf ~/models/model.Q4_K_M.gguf --name my-local --register
+runhug local add
+runhug local add --pick 3
+runhug local setup          # Ollama / llama.cpp / MLX hints
+```
+
+## Local serve (optional)
+
+Search does **not** need a local chat model. For local inference:
+
+```bash
+runhug init --model <ollama-tag-or-hub-id>
 ```

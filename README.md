@@ -4,8 +4,7 @@
 
 Search Hugging Face models, deploy a RunPod serverless vLLM endpoint, and talk to it over an OpenAI-compatible URL — from the terminal.
 
-Full docs: [runhug on GitBook](https://devrecated-solutions.gitbook.io/runhug/)  
-Draft CR (until merged): [change request #1](https://app.gitbook.com/o/8ztJRg1pbAuXx8CHt3LF/s/nficyebsa9VUNbdhNhxO/~/changes/Jy96Sn3R3Bo16Qhgry8y/)
+Docs: [adamsiwiec1.github.io/runhug-cli](https://adamsiwiec1.github.io/runhug-cli/) (VitePress in `docs/`)
 
 ## Install
 
@@ -46,11 +45,11 @@ Load balancer OpenAI base: `https://{id}.api.runpod.ai/v1`
 
 | What | Where |
 | --- | --- |
-| Guides & reference | [GitBook](https://devrecated-solutions.gitbook.io/runhug/) |
-| Local VitePress (contributors) | `docs/` — `npm ci && npm run docs:dev` |
-| Contributing / security | [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) |
+| Site | [GitHub Pages](https://adamsiwiec1.github.io/runhug-cli/) |
+| Source | `docs/` — `npm ci && npm run docs:dev` |
+| Contributing | [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) |
 
-Deploy stays **RunPod-only** for now (HF is Hub search + embeddings). See the GitBook product note for why.
+Deploy stays **RunPod-only** for now (HF is Hub search + embeddings). See [Why RunPod-only](docs/guide/runpod-only.md).
 
 ## License
 

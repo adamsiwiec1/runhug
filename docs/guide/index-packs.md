@@ -1,27 +1,27 @@
 # Category index packs
 
-runhug-cli search is **local-first**. Category packs extend the local SQLite
+runhug search is **local-first**. Category packs extend the local SQLite
 index beyond the small in-repo starter DB.
 
 ## Install
 
 ```bash
-runhug-cli init
+runhug init
 ```
 
 When offered, pick categories (numbers, ranges, `all`, or `none`). Packs
 download from the latest GitHub Release of `adamsiwiec1/runhug-cli`
 (`RUNHUG_PACKS_REPO` overrides), verify SHA-256 from `index-manifest.json`,
-store under `~/.config/runhug-cli/packs/`, and **merge** into
-`~/.config/runhug-cli/models.db`.
+store under `~/.config/runhug/packs/`, and **merge** into
+`~/.config/runhug/models.db`.
 
 ## Update (deltas)
 
 ```bash
-runhug-cli update          # prefer delta JSONL, else Hub lastModified > watermark
-runhug-cli update --packs  # full pack replace from Releases
-runhug-cli update --hub    # Hub scrape only (ignore pack selections)
-runhug-cli update --force  # rebuild text-generation scrape from scratch
+runhug update          # prefer delta JSONL, else Hub lastModified > watermark
+runhug update --packs  # full pack replace from Releases
+runhug update --hub    # Hub scrape only (ignore pack selections)
+runhug update --force  # rebuild text-generation scrape from scratch
 ```
 
 Per-category watermarks live in `models.db` metadata (`pack:<id>:watermark`)
