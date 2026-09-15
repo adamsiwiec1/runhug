@@ -1,5 +1,9 @@
 # runhug
 
+<p align="center">
+  <img src="docs/public/hero.svg" alt="runhug — Find the best model. Deploy it in minutes. Run it for pennies." width="100%"/>
+</p>
+
 **Find the best model. Deploy it in minutes. Run it for pennies.**
 
 Search Hugging Face models, deploy a RunPod serverless vLLM endpoint, and talk to it over an OpenAI-compatible URL — from the terminal.

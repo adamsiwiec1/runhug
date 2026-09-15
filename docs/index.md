@@ -5,6 +5,9 @@ hero:
   name: runhug
   text: Find. Deploy. Run.
   tagline: Hugging Face search via NLP, RunPod serverless vLLM in minutes — for pennies.
+  image:
+    src: /hero.svg
+    alt: runhug terminal hero
   actions:
     - theme: brand
       text: Get started
