@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.6-beta.1] - 2026-09-17
+
+### Fixed
+- SQLite driver swapped from cgo-based `mattn/go-sqlite3` to pure-Go `modernc.org/sqlite`. Release binaries built with `CGO_ENABLED=0` previously hit a stub and failed to open the local index (`open local index: Binary was compiled with 'CGO_ENABLED=0'…`). Local `search` / `recommend` now work in statically-linked, cgo-free builds, and cross-OS releases no longer need a C toolchain.
+
 ## [0.1.5] - 2026-09-15
 
 ### Changed
