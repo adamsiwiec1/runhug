@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 
 	"github.com/adamsiwiec1/runhug/internal/hf"
 )
@@ -42,7 +42,7 @@ func Open(path string) (*Index, error) {
 		return nil, fmt.Errorf("create index directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
@@ -330,7 +330,7 @@ func OpenReadOnly(path string) (*Index, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
