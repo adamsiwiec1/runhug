@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>heretic &middot; training dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --border: #242933; --text: #d7dce2;
+    --dim: #8b94a3; --green: #3ecf8e; --cyan: #4cc9f0; --red: #f07178;
+    --yellow: #e5c07b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+           padding: 16px 22px; border-bottom: 1px solid var(--border);
+           background: var(--panel); }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .5px; }
+  header .model { color: var(--cyan); font-family: ui-monospace, monospace; }
+  #status-pill { margin-left: auto; padding: 3px 12px; border-radius: 999px;
+                 background: var(--border); color: var(--dim); font-size: 12px;
+                 text-transform: uppercase; letter-spacing: .8px; }
+  #status-pill.running { background: #123; color: var(--cyan); }
+  #status-pill.done { background: #123c2a; color: var(--green); }
+  #status-pill.error { background: #3a1d22; color: var(--red); }
+  main { max-width: 1080px; margin: 0 auto; padding: 22px; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+             gap: 12px; margin-bottom: 22px; }
+  .metric { background: var(--panel); border: 1px solid var(--border);
+            border-radius: 10px; padding: 14px 16px; }
+  .metric b { display: block; font-size: 22px; margin-top: 2px; }
+  .metric span { font-size: 11px; color: var(--dim); text-transform: uppercase;
+                 letter-spacing: .6px; }
+  #warn { display: none; background: #3a2e14; color: var(--yellow);
+          border: 1px solid #5a4a20; border-radius: 8px; padding: 10px 14px;
+          margin-bottom: 14px; }
+  #warn.show { display: block; }
+  .panel { background: var(--panel); border: 1px solid var(--border);
+           border-radius: 10px; padding: 16px; margin-bottom: 22px; }
+  .panel h2 { font-size: 12px; color: var(--dim); text-transform: uppercase;
+              letter-spacing: .8px; margin: 0 0 12px; }
+  .chart-wrap { position: relative; height: 340px; }
+  #params { font-family: ui-monospace, monospace; font-size: 12px; color: var(--dim);
+            white-space: pre-wrap; word-break: break-word; }
+  #logs { font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5;
+          background: #0b0d11; border: 1px solid var(--border); border-radius: 8px;
+          padding: 12px; height: 300px; overflow-y: auto; white-space: pre-wrap;
+          word-break: break-word; }
+  #logs .trial { color: var(--red); }
+  #logs .score { color: var(--green); }
+  footer { text-align: center; color: var(--dim); font-size: 12px; padding: 22px; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>heretic</h1>
+    <span class="model" id="model"></span>
+    <span id="status-pill">starting</span>
+  </header>
+
+  <main>
+    <div class="metrics">
+      <div class="metric"><span>trials</span><b id="m-trials">-</b></div>
+      <div class="metric"><span>best refusals</span><b id="m-refusals">-</b></div>
+      <div class="metric"><span>best kl divergence</span><b id="m-kl">-</b></div>
+      <div class="metric"><span>elapsed</span><b id="m-elapsed">-</b></div>
+      <div class="metric"><span>upload target</span><b id="m-upload" style="font-size:13px">-</b></div>
+    </div>
+
+    <div id="warn">Dashboard connection lost - training pod may have stopped. Recheck with
+      <code>runhug heretic status</code>.</div>
+
+    <div class="panel">
+      <h2>Trial progress &middot; refusals vs KL divergence</h2>
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>Selected trial parameters</h2>
+      <div id="params">-</div>
+    </div>
+
+    <div class="panel">
+      <h2>Training log</h2>
+      <div id="logs"></div>
+    </div>
+  </main>
+
+  <footer>runhug &middot; heretic (abliteration) training pod</footer>
+
+  <script>
+    const TOKEN = {{ token | tojson }};
+    const MODEL = {{ model | tojson }};
+    const q = (u) => TOKEN ? u + (u.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(TOKEN) : u;
+    const el = (id) => document.getElementById(id);
+    let chart = null;
+    let offset = 0;
+
+    el("model").textContent = MODEL || "…";
+
+    function fmt(sec) {
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+      return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    }
+
+    function setPill(status) {
+      const pill = el("status-pill");
+      pill.className = "";
+      pill.classList.add(status === "done" ? "done" : status === "error" ? "error" : "running");
+      pill.textContent = status || "…";
+    }
+
+    function render(s) {
+      const trials = s.trials || [];
+      el("m-trials").textContent = trials.length + " / " + (s.trials_total || "–");
+      el("m-refusals").textContent = (s.best_refusals ?? 0) + " / " + (s.refusals_total || 100);
+      el("m-kl").textContent = (s.best_kl ?? 0).toFixed(4);
+      el("m-elapsed").textContent = fmt(s.elapsed_sec || 0);
+      el("m-upload").textContent = s.upload_repo_id || (s.output_path || "–");
+      el("m-upload").style.fontSize = s.upload_repo_id ? "13px" : "inherit";
+      if (trials.length > 0) {
+        el("params").textContent = trials[trials.length - 1].params || "top trial had no parsed parameters";
+      }
+      if (!chart) {
+        chart = new Chart(el("chart"), {
+          type: "scatter",
+          data: { datasets: [
+            { label: "refusals", data: [], showLine: true, borderColor: "#3ecf8e",
+              backgroundColor: "#3ecf8e", spanGaps: true, pointRadius: 3, yAxisID: "y" },
+            { label: "KL divergence", data: [], showLine: true, borderColor: "#4cc9f0",
+              backgroundColor: "#4cc9f0", spanGaps: true, pointRadius: 3, yAxisID: "y1" },
+          ]},
+          options: {
+            animation: false, responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: "#8b94a3" } } },
+            scales: {
+              x: { title: { display: true, text: "trial", color: "#8b94a3" },
+                   ticks: { color: "#8b94a3" }, grid: { color: "#1c2027" } },
+              y: { title: { display: true, text: "refusals (k / m)", color: "#8b94a3" },
+                   ticks: { color: "#8b94a3" }, grid: { color: "#1c2027" } },
+              y1: { position: "right", title: { display: true, text: "KL divergence", color: "#8b94a3" },
+                    ticks: { color: "#8b94a3" }, grid: { drawOnChartArea: false } },
+            },
+          },
+        });
+      }
+      chart.data.datasets[0].data = trials.map((t) => ({ x: t.index, y: t.refusals }));
+      chart.data.datasets[1].data = trials.map((t) => ({ x: t.index, y: t.kl }));
+      chart.update();
+    }
+
+    function appendLogs(lines) {
+      const box = el("logs");
+      const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+      for (const line of lines) {
+        const clean = line.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
+        const div = document.createElement("div");
+        div.textContent = clean;
+        if (/^Running trial/.test(clean.trim())) div.className = "trial";
+        else if (/^\* /.test(clean.trim())) div.className = "score";
+        box.appendChild(div);
+      }
+      while (box.childElementCount > 4000) box.removeChild(box.firstChild);
+      if (atBottom) box.scrollTop = box.scrollHeight;
+    }
+
+    async function poll() {
+      try {
+        const [stRes, lgRes] = await Promise.all([
+          fetch(q("/status.json")),
+          fetch(q("/logs?offset=" + offset + "&n=500")),
+        ]);
+        if (!stRes.ok || !lgRes.ok) { el("warn").classList.add("show"); return; }
+        el("warn").classList.remove("show");
+        const s = await stRes.json();
+        const lg = await lgRes.json();
+        render(s);
+        setPill(lg.done ? "done" : s.status || "running");
+        appendLogs(lg.lines || []);
+        offset = lg.offset;
+      } catch (e) {
+        el("warn").classList.add("show");
+      }
+    }
+
+    poll();
+    setInterval(poll, 4000);
+  </script>
+</body>
+</html>

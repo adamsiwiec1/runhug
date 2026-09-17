@@ -148,6 +148,12 @@ func printRegistry(reg *store.Registry) {
 			if target == "-" && m.GGUFPath != "" {
 				target = m.GGUFPath
 			}
+		} else if m.PodID != "" {
+			where = "pod"
+			target = m.PodID
+			if m.DashboardURL != "" {
+				target = m.DashboardURL
+			}
 		} else {
 			where = "runpod"
 			target = m.EndpointID
@@ -347,6 +353,27 @@ func cmdDelete(args []string) error {
 			fmt.Printf("%s %s\n", green("removed"), bold(label))
 			return nil
 		}
+		if m.PodID != "" {
+			if err := env.RequireRunpod(); err != nil {
+				return err
+			}
+			if !*yes && !confirm("Terminate pod "+m.PodID+" ("+label+")?") {
+				return fmt.Errorf("aborted")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := runpod.New(env.RunpodAPIKey).DeletePod(ctx, m.PodID); err != nil {
+				return err
+			}
+			if !*keepLocal {
+				reg.Remove(m.HFRepo)
+				if err := reg.Save(); err != nil {
+					return err
+				}
+			}
+			fmt.Printf("%s %s\n", green("terminated"), cyan(m.PodID))
+			return nil
+		}
 	}
 	if err := env.RequireRunpod(); err != nil {
 		return err
@@ -397,6 +424,31 @@ func cmdStatus(args []string) error {
 		}
 		if m.LocalPID != 0 {
 			printKV(os.Stdout, "pid", fmt.Sprintf("%d", m.LocalPID))
+		}
+		return nil
+	}
+	if m.PodID != "" {
+		if err := env.RequireRunpod(); err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		pod, err := runpod.New(env.RunpodAPIKey).GetPod(ctx, m.PodID)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stdout, "%s  %s\n", bold(m.HFRepo), cyan(m.PodID))
+		printKV(os.Stdout, "status", pod.Status)
+		printKV(os.Stdout, "cloud", strings.ToUpper(m.PodCloud))
+		printKV(os.Stdout, "gpu", fmt.Sprintf("%s ×%d", m.GPUPool, m.GPUCount))
+		if pod.Runtime != nil && pod.Runtime.Uptime > 0 {
+			printKV(os.Stdout, "uptime", fmt.Sprintf("%dm%02ds", pod.Runtime.Uptime/60, pod.Runtime.Uptime%60))
+		}
+		if m.DashboardURL != "" {
+			printKV(os.Stdout, "dashboard", cyan(m.DashboardURL))
+		}
+		if m.HourlyUSD > 0 {
+			printKV(os.Stdout, "billing", fmt.Sprintf("~$%.2f/hr", m.HourlyUSD))
 		}
 		return nil
 	}

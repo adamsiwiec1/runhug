@@ -23,20 +23,24 @@ type Registry struct {
 }
 
 type Model struct {
-	HFRepo       string    `json:"hf_repo"`
-	Backend      string    `json:"backend,omitempty"`
-	EndpointID   string    `json:"endpoint_id,omitempty"`
-	EndpointType string    `json:"endpoint_type,omitempty"`
-	BaseURL      string    `json:"base_url,omitempty"`
-	GGUFPath     string    `json:"gguf_path,omitempty"`
-	Runtime      string    `json:"runtime,omitempty"`
-	ServeName    string    `json:"serve_name,omitempty"`
-	LocalPID     int       `json:"local_pid,omitempty"`
-	GPUPool      string    `json:"gpu_pool,omitempty"`
-	GPUCount     int       `json:"gpu_count,omitempty"`
-	Image        string    `json:"image,omitempty"`
-	HourlyUSD    float64   `json:"hourly_usd,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
+	HFRepo        string    `json:"hf_repo"`
+	Backend       string    `json:"backend,omitempty"`
+	EndpointID    string    `json:"endpoint_id,omitempty"`
+	EndpointType  string    `json:"endpoint_type,omitempty"`
+	PodID         string    `json:"pod_id,omitempty"`
+	PodCloud      string    `json:"pod_cloud,omitempty"`
+	DashboardURL  string    `json:"dashboard_url,omitempty"`
+	DashboardPort int       `json:"dashboard_port,omitempty"`
+	BaseURL       string    `json:"base_url,omitempty"`
+	GGUFPath      string    `json:"gguf_path,omitempty"`
+	Runtime       string    `json:"runtime,omitempty"`
+	ServeName     string    `json:"serve_name,omitempty"`
+	LocalPID      int       `json:"local_pid,omitempty"`
+	GPUPool       string    `json:"gpu_pool,omitempty"`
+	GPUCount      int       `json:"gpu_count,omitempty"`
+	Image         string    `json:"image,omitempty"`
+	HourlyUSD     float64   `json:"hourly_usd,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 func (m Model) Kind() string {
