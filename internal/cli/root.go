@@ -48,6 +48,8 @@ func Run(args []string) error {
 		return cmdIndexInfo(rest)
 	case "deploy":
 		return cmdDeploy(rest)
+	case "heretic":
+		return cmdHeretic(rest)
 	case "local":
 		return cmdLocal(rest)
 	case "list", "deployments":
@@ -103,12 +105,14 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, bold("runpod"))
 	fmt.Fprintln(w, "  deploy <model>     serverless vllm")
+	fmt.Fprintln(w, "  heretic make <m>   abliteration training pod + dashboard")
 	fmt.Fprintln(w, "  list               local registry + runpod")
 	fmt.Fprintln(w, "  proxy              openai proxy :8080/v1")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, bold("chat & agents"))
 	fmt.Fprintln(w, "  run [model]        chat repl")
-	fmt.Fprintln(w, "  start <agent>      coding agent bridge")
+	fmt.Fprintln(w, "  start claude       wire Claude Code through the bridge")
+	fmt.Fprintln(w, "  start opencode     wire opencode to the proxy/deployment")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, bold("local"))
 	fmt.Fprintln(w, "  local add          models on this machine")

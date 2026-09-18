@@ -29,11 +29,13 @@ func cmdStart(args []string) error {
 	noLaunch := fs.Bool("no-launch", false, "print env/command only; do not exec the agent")
 	yes := fs.Bool("yes", false, "non-interactive: auto-pick when exactly one registry/remote model")
 	bridgePort := fs.Int("bridge-port", 0, "local Anthropic→OpenAI bridge port (0 = ephemeral)")
+	dryRun := fs.Bool("dry-run", false, "print the opencode config JSON only (opencode)")
+	cfgPath := fs.String("config", "", "opencode config path (default ~/.config/opencode/opencode.json)")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: %s start <agent> [model]\nAgents: claude (codex stub)\nExample: %s start claude org/model", version.Name, version.Name)
+		return fmt.Errorf("usage: %s start <agent> [model]\nAgents: claude, opencode (codex stub)\nExample: %s start opencode org/model", version.Name, version.Name)
 	}
 	agent := strings.ToLower(strings.TrimSpace(fs.Arg(0)))
 	registryKey := strings.TrimSpace(*modelKey)
@@ -45,10 +47,12 @@ func cmdStart(args []string) error {
 	switch agent {
 	case "claude":
 		return startClaude(registryKey, *baseURL, *apiKeyEnv, *serveModel, *bridgePort, *noLaunch, skipPrompt)
+	case "opencode":
+		return startOpenCode(registryKey, *baseURL, *apiKeyEnv, *serveModel, *noLaunch, *dryRun, *cfgPath, skipPrompt)
 	case "codex":
 		return startCodexStub(registryKey, *baseURL, *apiKeyEnv, *serveModel, *noLaunch, skipPrompt)
 	default:
-		return fmt.Errorf("unknown agent %q (supported: claude; stub: codex)", agent)
+		return fmt.Errorf("unknown agent %q (supported: claude, opencode; stub: codex)", agent)
 	}
 }
 
@@ -154,12 +158,12 @@ func startClaude(registryKey, baseURL, apiKeyEnv, serveModel string, bridgePort 
 // buildClaudeEnv returns Unsloth-style Anthropic env for Claude Code.
 func buildClaudeEnv(bridgeBaseURL, authToken, model string) map[string]string {
 	env := map[string]string{
-		"ANTHROPIC_BASE_URL":                     strings.TrimRight(bridgeBaseURL, "/"),
-		"ANTHROPIC_AUTH_TOKEN":                   authToken,
-		"CLAUDE_CODE_ATTRIBUTION_HEADER":         "0",
-		"CLAUDE_CODE_ENABLE_TELEMETRY":           "0",
+		"ANTHROPIC_BASE_URL":                       strings.TrimRight(bridgeBaseURL, "/"),
+		"ANTHROPIC_AUTH_TOKEN":                     authToken,
+		"CLAUDE_CODE_ATTRIBUTION_HEADER":           "0",
+		"CLAUDE_CODE_ENABLE_TELEMETRY":             "0",
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-		"CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
+		"CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS":   "1",
 	}
 	if model != "" {
 		env["ANTHROPIC_MODEL"] = model
@@ -285,7 +289,6 @@ func formatClaudeEnvExports(env map[string]string, realToken string) []string {
 	return lines
 }
 
-
 func formatClaudeCommand(args []string) string {
 	parts := make([]string, 0, 1+len(args))
 	parts = append(parts, "claude")
@@ -353,4 +356,3 @@ func nonEmpty(v, fallback string) string {
 	}
 	return v
 }
-

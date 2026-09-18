@@ -19,6 +19,9 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- `runhug heretic make <org/model>` trains a "heretic" (abliteration) model on a RunPod GPU pod running `ghcr.io/adamsiwiec1/runhug-heretic`. The CLI sizes the GPU against the Hub repo, provisions the pod, and streams live trial progress (refusals / KL divergence) to the terminal via the pod dashboard; the decensored model is uploaded to `<hf-user>/heretic-<model>` when a HF token is configured. Also `heretic logs`, `heretic stop`, `heretic status`; pod-backed registry entries show up in `list` / `status` / `delete`.
+
 ### Changed
 - README-only docs: removed VitePress `docs/` site, Pages workflow, and npm docs tooling; hero at `assets/hero.svg`. Install story is curl|bash / irm|iex (+ optional `go install`). CLI help Docs link points at the GitHub README.
 - Product/repo rename: module `github.com/adamsiwiec1/runhug`, CLI binary `runhug` (`cmd/runhug`), config dir `~/.config/runhug` (migrates keys/settings from `~/.config/runhug-cli`). GitHub repo is now `adamsiwiec1/runhug`. Next release asset prefix `runhug_<ver>_…` (install scripts still accept legacy `runhug-cli_` assets).

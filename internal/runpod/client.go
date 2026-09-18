@@ -143,9 +143,18 @@ type Problem struct {
 }
 
 func (c *Client) ListGPUs(ctx context.Context) ([]GPU, error) {
+	return c.listGPUs(ctx, "SERVERLESS")
+}
+
+// ListPodGPUs returns the POD-priced catalog (the one pod creation stocks from).
+func (c *Client) ListPodGPUs(ctx context.Context) ([]GPU, error) {
+	return c.listGPUs(ctx, "POD")
+}
+
+func (c *Client) listGPUs(ctx context.Context, product string) ([]GPU, error) {
 	q := url.Values{}
 	q.Set("include", "AVAILABILITY")
-	q.Set("product", "SERVERLESS")
+	q.Set("product", product)
 	var wrap struct {
 		GPUs  []GPU `json:"gpus"`
 		Items []GPU `json:"items"`
