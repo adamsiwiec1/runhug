@@ -196,6 +196,11 @@ def build_command(state):
     state.save_dir = save_dir
 
     cmd = ["heretic", "--model", model, "--model-action", action, "--n-trials", trials]
+    # Bypass the post-training interactive menus on a non-TTY (prompt_toolkit
+    # raises EOFError when stdin is not a terminal): auto-pick the best trial
+    # and continue any existing study checkpoint (resume interrupted runs).
+    cmd += ["--checkpoint-action", os.environ.get("HERETIC_CHECKPOINT_ACTION", "continue")]
+    cmd += ["--trial-index", os.environ.get("HERETIC_TRIAL_INDEX", "0")]
     if action == "upload":
         repo = os.environ.get("HERETIC_UPLOAD_REPO", "").strip()
         if not repo:
@@ -222,11 +227,13 @@ def stream(proc, state):
         for raw in stream_out:
             line = strip_ansi(raw).rstrip("\r\n")
             parse_done(line, state)
+            print(line, flush=True)
             with open(LOG_PATH, "a") as fh:
                 fh.write(line + "\n")
 
     with open(LOG_PATH, "a") as fh:
         fh.write(f"[runhug] process exited with status {proc.returncode}\n")
+    print(f"[runhug] process exited with status {proc.returncode}", flush=True)
     state.addline(f"[runhug] process exited with status {proc.returncode}")
 
 

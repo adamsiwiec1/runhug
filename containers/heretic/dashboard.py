@@ -94,6 +94,7 @@ def index(request: Request):
         return deny()
     token = request.query_params.get("token", "")
     return templates.TemplateResponse(
-        "index.html",
-        {"request": request, "token": token, "model": read_status().get("model", "")},
+        request=request,
+        name="index.html",
+        context={"request": request, "token": token, "model": read_status().get("model", "")},
     )
