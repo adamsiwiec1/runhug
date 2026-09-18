@@ -238,6 +238,18 @@ func cmdHereticMake(args []string) error {
 			return fmt.Errorf("container registry credential: %w", err)
 		}
 		req.Registry = registryID
+	} else {
+		// Reuse a credential stored by an earlier run (same name) so private
+		// GHCR images pull without re-supplying --registry-user/--registry-token.
+		regs, err := rp.ListRegistryCredentials(ctx)
+		if err == nil {
+			for _, r := range regs {
+				if r.Name == "runhug-heretic" && r.ID != "" {
+					req.Registry = r.ID
+					break
+				}
+			}
+		}
 	}
 
 	printHereticPlan(modelID, format, est, choice, hourly, req, action, uploadRepoID, *trials, env.HFToken != "")
