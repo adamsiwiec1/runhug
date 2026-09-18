@@ -201,6 +201,8 @@ def build_command(state):
     # and continue any existing study checkpoint (resume interrupted runs).
     cmd += ["--checkpoint-action", os.environ.get("HERETIC_CHECKPOINT_ACTION", "continue")]
     cmd += ["--trial-index", os.environ.get("HERETIC_TRIAL_INDEX", "0")]
+    # Export strategy: merge the LoRA into a full model (do not prompt).
+    cmd += ["--export-strategy", os.environ.get("HERETIC_EXPORT_STRATEGY", "MERGE")]
     if action == "upload":
         repo = os.environ.get("HERETIC_UPLOAD_REPO", "").strip()
         if not repo:
