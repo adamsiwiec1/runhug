@@ -75,6 +75,8 @@ flags for make:
   --upload-repo-id <org/repo>   target repo; default <hf-user>/heretic-<model>
   --private           create the upload repo private on Hugging Face
   --image <img>       pod image (default runhug-heretic)
+  --registry-user <user>  username for a private --image (ghcr.io: your GitHub name)
+  --registry-token <token>  token for a private --image; stored as a RunPod registry credential (env RUNHUG_REGISTRY_TOKEN)
   --name <n>          pod name
   --yes, --dry-run, --json, --no-follow, --heretic-arg <k=v> (repeatable)
 
@@ -100,6 +102,8 @@ func cmdHereticMake(args []string) error {
 	private := fs.Bool("private", false, "create the upload repo as private")
 	uploadRepo := fs.String("upload-repo-id", "", "HF repo to upload to")
 	image := fs.String("image", runpod.DefaultHereticImage, "pod image")
+	regUser := fs.String("registry-user", "", "registry username for a private --image (ghcr.io: your GitHub name)")
+	regToken := fs.String("registry-token", os.Getenv("RUNHUG_REGISTRY_TOKEN"), "registry token for a private --image")
 	name := fs.String("name", "", "pod name")
 	token := fs.String("token", "", "HF token override (default: stored / env)")
 	dashToken := fs.String("dashboard-token", "", "optional shared secret for the dashboard")
@@ -143,15 +147,15 @@ func cmdHereticMake(args []string) error {
 
 	est := sizing.EstimateModel(*model, format, 8192)
 	rp := runpod.New(env.RunpodAPIKey)
-	gpus, err := rp.ListGPUs(ctx)
+	gpus, err := rp.ListPodGPUs(ctx)
 	if err != nil {
 		return err
 	}
-	choice, err := runpod.Pick(gpus, est.RequiredGB, *gpu, *gpuCount)
+	choice, err := runpod.PickPod(gpus, est.RequiredGB, *gpu, *gpuCount)
 	if err != nil {
 		return err
 	}
-	hourly := podHourly(gpus, choice.Pool.ID, choice.GPUCount)
+	hourly := choice.HourlyUSD
 
 	diskGB := *disk
 	if diskGB <= 0 {
@@ -221,12 +225,19 @@ func cmdHereticMake(args []string) error {
 		Ports: []string{"8080/http"},
 		Env:   workerEnv,
 		GPU: &runpod.PodGPU{
-			ID:            choice.Pool.ID,
+			ID:            choice.GPUTypeID,
 			Count:         choice.GPUCount,
 			MinVcpuPerGpu: 8,
 			MinRamPerGpu:  int(math.Ceil(choice.Pool.MemoryGB)),
 		},
 		Cloud: strings.ToUpper(strings.TrimSpace(*cloud)),
+	}
+	if *regUser != "" && *regToken != "" {
+		registryID, err := rp.RegistryCredentialFor(ctx, "runhug-heretic", *regUser, *regToken)
+		if err != nil {
+			return fmt.Errorf("container registry credential: %w", err)
+		}
+		req.Registry = registryID
 	}
 
 	printHereticPlan(modelID, format, est, choice, hourly, req, action, uploadRepoID, *trials, env.HFToken != "")
@@ -246,7 +257,28 @@ func cmdHereticMake(args []string) error {
 
 	created, err := rp.CreatePod(ctx, req)
 	if err != nil {
-		return err
+		if runpod.IsOutOfStock(err) {
+			fmt.Fprintf(os.Stdout, "%s %s is out of stock; retrying…\n", dim("|"), yellow(req.GPU.ID))
+			candidates := runpod.FittingPodCards(gpus, est.RequiredGB)
+			for _, cand := range candidates {
+				if cand.ID == req.GPU.ID {
+					continue
+				}
+				req.GPU.ID = cand.ID
+				hourly = cand.PodHourlyPrice() * float64(req.GPU.Count)
+				fmt.Fprintf(os.Stdout, "%s trying %s (~$%.2f/hr)…\n", dim("|"), cand.Name, hourly)
+				created, err = rp.CreatePod(ctx, req)
+				if err == nil {
+					break
+				}
+				if !runpod.IsOutOfStock(err) {
+					return err
+				}
+			}
+		}
+		if err != nil {
+			return err
+		}
 	}
 
 	reg, _, err := store.Load()
@@ -260,8 +292,8 @@ func cmdHereticMake(args []string) error {
 		PodCloud:      req.Cloud,
 		DashboardURL:  dashboard,
 		DashboardPort: runpod.DefaultDashboardPort,
-		GPUPool:       choice.Pool.ID,
-		GPUCount:      choice.GPUCount,
+		GPUPool:       req.GPU.ID,
+		GPUCount:      req.GPU.Count,
 		Image:         req.Image,
 		HourlyUSD:     hourly,
 		CreatedAt:     time.Now().UTC(),
@@ -275,8 +307,8 @@ func cmdHereticMake(args []string) error {
 		"pod_id":        created.ID,
 		"name":          created.Name,
 		"model":         modelID,
-		"gpu_pool":      choice.Pool.ID,
-		"gpu_count":     choice.GPUCount,
+		"gpu_pool":      req.GPU.ID,
+		"gpu_count":     req.GPU.Count,
 		"hourly_usd":    hourly,
 		"cloud":         req.Cloud,
 		"action":        action,
@@ -299,7 +331,7 @@ func cmdHereticMake(args []string) error {
 	if action == "upload" {
 		printKV(os.Stdout, "upload", cyan(uploadRepoID))
 	}
-	printKV(os.Stdout, "billing", fmt.Sprintf("%.2f GB disk, ~$%.2f/hr while running on %s ×%d", float64(req.Disk), hourly, choice.Pool.ID, choice.GPUCount))
+	printKV(os.Stdout, "billing", fmt.Sprintf("%.2f GB disk, ~$%.2f/hr while running on %s ×%d", float64(req.Disk), hourly, req.GPU.ID, req.GPU.Count))
 	fmt.Fprintln(os.Stdout)
 
 	if !follow {
@@ -312,18 +344,6 @@ func cmdHereticMake(args []string) error {
 
 	fmt.Fprintln(os.Stdout, dim("Provisioning pod (dashboard + heretic)…"))
 	return followHeretic(ctx, rp, created.ID, modelID, dashboard, action, uploadRepoID, *dashToken)
-}
-
-func podHourly(gpus []runpod.GPU, poolID string, count int) float64 {
-	if poolID == "" || count <= 0 {
-		return 0
-	}
-	for _, g := range gpus {
-		if strings.EqualFold(g.PoolID(), poolID) {
-			return g.PodHourlyPrice() * float64(count)
-		}
-	}
-	return 0
 }
 
 func hereticSlug(modelID string) string {
@@ -350,8 +370,12 @@ func printHereticPlan(modelID string, format hf.Format, est sizing.Estimate, c r
 	if est.WeightGB > 0 {
 		printKV(os.Stdout, "weights", fmt.Sprintf("%.1f GB → %.1f GB on a %.0f GB card", est.WeightGB, est.RequiredGB, c.Pool.MemoryGB))
 	}
+	gpuID := c.GPUTypeID
+	if gpuID == "" {
+		gpuID = c.Pool.ID
+	}
 	printKV(os.Stdout, "gpu", fmt.Sprintf("%s ×%d  %s  ~$%.2f/hr pod  stock %s",
-		c.Pool.ID, c.GPUCount, c.Pool.ExampleGPU, hourly, c.Pool.Availability))
+		gpuID, c.GPUCount, c.Pool.ExampleGPU, hourly, c.Pool.Availability))
 	printKV(os.Stdout, "why", c.Reason)
 	printKV(os.Stdout, "trials", fmt.Sprintf("%d", trials))
 	if action == "upload" {

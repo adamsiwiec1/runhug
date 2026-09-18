@@ -89,7 +89,7 @@ type PodRuntimePort struct {
 type CreatePodRequest struct {
 	Name          string            `json:"name"`
 	Image         string            `json:"image,omitempty"`
-	ImageRegAuth  *RegistryAuth     `json:"registry,omitempty"`
+	Registry      string            `json:"registry,omitempty"`
 	Args          string            `json:"args,omitempty"`
 	Disk          int               `json:"disk,omitempty"`
 	Ports         []string          `json:"ports,omitempty"`
@@ -101,11 +101,63 @@ type CreatePodRequest struct {
 	StartSSH      bool              `json:"startSsh,omitempty"`
 }
 
-// RegistryAuth is an object in an image field order registry:host/repo:tag plus
-// credentials that RunPod uses for pulling a private image.
-type RegistryAuth struct {
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
+// RegistryCredential is a stored container-registry credential (registries API).
+type RegistryCredential struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+func (c *Client) ListRegistryCredentials(ctx context.Context) ([]RegistryCredential, error) {
+	var wrap struct {
+		Data       []RegistryCredential `json:"data"`
+		Items      []RegistryCredential `json:"items"`
+		Registries []RegistryCredential `json:"registries"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/v2/registries", nil, &wrap); err != nil {
+		return nil, err
+	}
+	if len(wrap.Registries) > 0 {
+		return wrap.Registries, nil
+	}
+	if len(wrap.Data) > 0 {
+		return wrap.Data, nil
+	}
+	return wrap.Items, nil
+}
+
+func (c *Client) CreateRegistryCredential(ctx context.Context, name, username, password string) (*RegistryCredential, error) {
+	req := map[string]string{"name": name, "username": username, "password": password}
+	var wrap struct {
+		Data *RegistryCredential `json:"data"`
+		ID   string              `json:"id"`
+		Name string              `json:"name"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/v2/registries", req, &wrap); err != nil {
+		return nil, err
+	}
+	if wrap.Data != nil {
+		return wrap.Data, nil
+	}
+	return &RegistryCredential{ID: wrap.ID, Name: wrap.Name}, nil
+}
+
+// RegistryCredentialFor returns the ID of an existing credential with name,
+// creating it first if absent.
+func (c *Client) RegistryCredentialFor(ctx context.Context, name, username, password string) (string, error) {
+	existing, err := c.ListRegistryCredentials(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, cred := range existing {
+		if cred.Name == name && cred.ID != "" {
+			return cred.ID, nil
+		}
+	}
+	created, err := c.CreateRegistryCredential(ctx, name, username, password)
+	if err != nil {
+		return "", err
+	}
+	return created.ID, nil
 }
 
 func (c *Client) ListPods(ctx context.Context) ([]Pod, error) {
@@ -182,6 +234,19 @@ func PodProxyURL(podID string, port int) string {
 		port = DefaultDashboardPort
 	}
 	return "https://" + podID + "-" + strconv.Itoa(port) + ".proxy.runpod.net"
+}
+
+// IsOutOfStock reports whether a RunPod error was a transient no-stock
+// rejection ("no longer any instances available ..."), which a caller can
+// retry against the next-cheapest card.
+func IsOutOfStock(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "no longer any instances") ||
+		strings.Contains(msg, "no instances available") ||
+		strings.Contains(msg, "out of stock")
 }
 
 // PodHourlyPrice returns the pay-as-you-go pod price for a GPU catalog entry.

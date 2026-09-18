@@ -18,6 +18,7 @@ type Pool struct {
 
 type Choice struct {
 	Pool      Pool
+	GPUTypeID string
 	GPUCount  int
 	HourlyUSD float64
 	Reason    string
@@ -166,6 +167,113 @@ func Pick(gpus []GPU, requiredGB float64, preferPool string, gpuCount int) (Choi
 		HourlyUSD: largest.PricePerHour * float64(need),
 		Reason:    fmt.Sprintf("%.1f GB does not fit one in-stock card; %dx %s (%.0f GB)", requiredGB, need, largest.ID, largest.MemoryGB),
 	}, nil
+}
+
+// PodCards returns in-stock GPU cards with pod pricing, sorted by pod price
+// then VRAM ascending.
+func PodCards(gpus []GPU) []GPU {
+	cards := make([]GPU, 0, len(gpus))
+	for _, g := range gpus {
+		if g.InStock() && g.PodHourlyPrice() > 0 && g.Memory > 0 {
+			cards = append(cards, g)
+		}
+	}
+	sort.Slice(cards, func(i, j int) bool {
+		pi, pj := cards[i].PodHourlyPrice(), cards[j].PodHourlyPrice()
+		if pi != pj {
+			return pi < pj
+		}
+		return cards[i].Memory < cards[j].Memory
+	})
+	return cards
+}
+
+// FittingPodCards returns the PodCards whose Memory can hold requiredGB.
+func FittingPodCards(gpus []GPU, requiredGB float64) []GPU {
+	if requiredGB <= 0 {
+		requiredGB = 16
+	}
+	cards := PodCards(gpus)
+	fit := cards[:0]
+	for _, g := range cards {
+		if g.Memory >= requiredGB {
+			fit = append(fit, g)
+		}
+	}
+	return fit
+}
+
+// PickPod is Pick for pod billing/stock: it sizes by pod price and picks a
+// concrete GPU type id (as pods API wants) instead of a serverless pool id.
+func PickPod(gpus []GPU, requiredGB float64, preferPool string, gpuCount int) (Choice, error) {
+	if requiredGB <= 0 {
+		requiredGB = 16
+	}
+	if gpuCount <= 0 {
+		gpuCount = 1
+	}
+	cards := PodCards(gpus)
+	if len(cards) == 0 {
+		return Choice{}, fmt.Errorf("no in-stock GPU cards with pod pricing in the catalog")
+	}
+
+	if preferPool != "" {
+		var match *GPU
+		for i := range cards {
+			if !strings.EqualFold(cards[i].PoolID(), preferPool) {
+				continue
+			}
+			if match == nil || cards[i].PodHourlyPrice() < match.PodHourlyPrice() {
+				m := cards[i]
+				match = &m
+			}
+		}
+		if match == nil {
+			return Choice{}, fmt.Errorf("unknown GPU pool %q (run `gpus` to list pools)", preferPool)
+		}
+		return Choice{
+			Pool:      poolFrom(*match),
+			GPUTypeID: match.ID,
+			GPUCount:  gpuCount,
+			HourlyUSD: match.PodHourlyPrice() * float64(gpuCount),
+			Reason:    "requested --gpu " + preferPool,
+		}, nil
+	}
+
+	fit := FittingPodCards(gpus, requiredGB)
+	if len(fit) > 0 {
+		return Choice{
+			Pool:      poolFrom(fit[0]),
+			GPUTypeID: fit[0].ID,
+			GPUCount:  gpuCount,
+			HourlyUSD: fit[0].PodHourlyPrice() * float64(gpuCount),
+			Reason:    fmt.Sprintf("cheapest in-stock POD card that fits %.1f GB", requiredGB),
+		}, nil
+	}
+
+	largest := cards[len(cards)-1]
+	need := int(math.Ceil(requiredGB / largest.Memory))
+	if need < 2 {
+		need = 2
+	}
+	return Choice{
+		Pool:      poolFrom(largest),
+		GPUTypeID: largest.ID,
+		GPUCount:  need,
+		HourlyUSD: largest.PodHourlyPrice() * float64(need),
+		Reason:    fmt.Sprintf("%.1f GB does not fit one card; %dx %s (%.0f GB)", requiredGB, need, largest.Name, largest.Memory),
+	}, nil
+}
+
+func poolFrom(g GPU) Pool {
+	return Pool{
+		ID:           g.PoolID(),
+		MemoryGB:     g.Memory,
+		PricePerHour: g.PodHourlyPrice(),
+		Availability: g.Availability,
+		ExampleGPU:   displayName(g),
+		InStock:      g.InStock(),
+	}
 }
 
 // ListFitting returns in-stock serverless pools whose MemoryGB can hold

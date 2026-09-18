@@ -7,11 +7,14 @@ FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    TOKENIZERS_PARALLELISM=false \
+    HF_HUB_DISABLE_SYMLINKS_WARNING=1
 
-# heretic CLI + dashboard runtime.
+# heretic CLI (git master: stable PyPI releases are interactive-only and
+# lack the headless --model-action/--upload-repo-id flags) + dashboard runtime.
 RUN pip install -U --no-cache-dir \
-        heretic-llm \
+        "git+https://github.com/p-e-w/heretic.git" \
         fastapi \
         "uvicorn[standard]" \
         jinja2
