@@ -37,6 +37,22 @@ short grace period so the dashboard stays viewable.
 | `RUNHUH_TOKEN` | – | optional dashboard auth secret |
 | `RUNHUH_KEEP_ALIVE_MIN` | `30` | minutes to stay up after success |
 | `RUNHUH_MAX_RUNTIME_MIN` | `720` | hard stop for runaway training |
+| `RUNHUH_ERROR_DELAY_S` | `15` | seconds before exiting on error (keep-alive grace) |
+| `HERETIC_CHECKPOINT_ACTION` | `continue` | `continue`, `restart`, or `null` |
+| `HERETIC_TRIAL_INDEX` | `0` | Pareto-front index of the trial to export |
+| `HERETIC_EXPORT_STRATEGY` | `MERGE` | `merge` or `adapter` |
+
+## Tests
+
+Unit tests for `run_pipeline.py` and `dashboard.py` live in `tests/` and run on
+a bare `python3` (the dashboard tests need fastapi/uvicorn/jinja2, which are
+already in the image):
+
+```bash
+python3 -m unittest discover -s tests -v
+# or, against the built image (includes the dashboard runtime deps):
+docker run --rm -v "$PWD":/src -w /src --entrypoint python runhug-heretic:latest -m unittest discover -s tests -v
+```
 
 ## Dashboard
 

@@ -1,0 +1,4 @@
+# Test dependencies for containers/heretic (runtime deps of the dashboard).
+fastapi
+uvicorn[standard]
+jinja2

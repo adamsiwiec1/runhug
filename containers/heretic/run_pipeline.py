@@ -19,6 +19,7 @@ Environment variables (all optional unless noted):
   RUNHUH_TOKEN                 optional shared secret for the dashboard
   RUNHUH_KEEP_ALIVE_MIN        minutes to keep the pod alive after training (default 30)
   RUNHUH_MAX_RUNTIME_MIN       hard stop if training runs longer (default 720)
+  RUNHUH_ERROR_DELAY_S         seconds to stay up before exiting on error (default 15)
 """
 
 import json
@@ -256,7 +257,8 @@ def start_dashboard(state):
     threading.Thread(target=run, daemon=True).start()
 
 
-def main():
+def run_main() -> int:
+    """Run the training pod; returns the process exit code (0 = success)."""
     os.makedirs(STATE_DIR, exist_ok=True)
     os.makedirs("/output", exist_ok=True)
     state = State()
@@ -274,8 +276,8 @@ def main():
         state.status = "error"
         write_status(state)
         print(f"[runhug] {exc}", flush=True)
-        time.sleep(15)
-        os._exit(1)
+        time.sleep(int(os.environ.get("RUNHUH_ERROR_DELAY_S", "15")))
+        return 1
 
     print("[runhug] " + " ".join(shlex.quote(c) for c in cmd), flush=True)
     state.status = "training"
@@ -326,8 +328,12 @@ def main():
         # Stay up after success so the dashboard and any artifacts remain visible.
         for i in range(keep_alive * 12):  # 5s ticks
             time.sleep(5)
-        os._exit(0)
-    os._exit(1 if state.error else 0)
+        return 0
+    return 1 if state.error else 0
+
+
+def main():
+    os._exit(run_main())
 
 
 if __name__ == "__main__":
